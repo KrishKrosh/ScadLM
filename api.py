@@ -1,57 +1,49 @@
-from flask import Flask, send_from_directory, abort
-from flask import jsonify
+from flask import Flask, send_from_directory, abort, jsonify
 from flask_cors import CORS, cross_origin
 from flask import request
 from generate import generate_scad
 import os
-
 from dotenv import load_dotenv
 
 load_dotenv()
 
-
 app = Flask(__name__)
-cors = CORS(app)
+CORS(app)
 app.config["CORS_HEADERS"] = "Content-Type"
 
+def serve_file(generation_id, iteration, file_name):
+    file_path = os.path.join("generated", str(generation_id), str(iteration), file_name)
+    if not os.path.exists(file_path):
+        abort(404, description="Resource not found")
+    return send_from_directory(os.path.dirname(file_path), file_name)
 
 @cross_origin()
 @app.route("/cad", methods=["GET"])
 def cad():
     query = request.args.get("query")
     generation_id, iteration = generate_scad(query)
-    return serve_stl(generation_id, iteration)
-
+    return {"id": generation_id, "iteration": iteration, "shapes": []}
 
 @cross_origin()
 @app.route("/models/generated/<generation_id>/<iteration>/output.stl")
 def serve_stl(generation_id, iteration):
-    # Construct the file path
-    file_path = os.path.join(
-        "generated", str(generation_id), str(iteration), "output.stl"
-    )
-
-    # Check if the file exists
-    if not os.path.exists(file_path):
-        abort(404, description="Resource not found")
-
-    # Serve the file
-    return send_from_directory(os.path.dirname(file_path), "output.stl")
-
+    return serve_file(generation_id, iteration, "output.stl")
 
 @cross_origin()
 @app.route("/models/generated/<generation_id>/<iteration>/output.png")
 def serve_png(generation_id, iteration):
-    # Construct the file path
-    file_path = os.path.join("generated", generation_id, iteration, "output.png")
+    return serve_file(generation_id, iteration, "output.png")
 
-    # Check if the file exists
-    if not os.path.exists(file_path):
+@cross_origin()
+@app.route("/files/<generation_id>/<iteration>", methods=["GET"])
+def get_files(generation_id, iteration):
+    directory = os.path.join("generated", str(generation_id), str(iteration))
+    if not os.path.exists(directory):
         abort(404, description="Resource not found")
-
-    # Serve the file
-    return send_from_directory(os.path.dirname(file_path), "output.png")
-
+    files = os.listdir(directory)
+    return jsonify(files)
 
 if __name__ == "__main__":
-    app.run(debug=True, port=5001)
+    port = int(os.getenv("PORT", 5001))
+    debug = os.getenv("DEBUG", "True").lower() in ["true", "1", "t"]
+    app.run(debug=debug, port=port)
