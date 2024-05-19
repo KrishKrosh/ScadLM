@@ -2,3 +2,5 @@ openai
 flask
 python-dotenv
 flask-cors
+nomic
+numpy

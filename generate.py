@@ -4,17 +4,25 @@ from openai import OpenAI
 from datetime import datetime
 from dotenv import load_dotenv
 import base64
+import nomic
+from nomic import AtlasDataset, embed
+import numpy
+import json
 
 load_dotenv()
 
 endpoint_id = os.environ.get("RUNPOD_ENDPOINT_ID")
 # api_key = os.environ.get("RUNPOD_API_KEY")
 api_key = os.environ.get("OPENAI_API_KEY")
+nomic_api_key = os.environ.get("NOMIC_API_KEY")
+
 
 client = OpenAI(
     # base_url=f"https://api.runpod.ai/v2/{endpoint_id}/openai/v1",
     api_key=api_key,
 )
+
+nomic.login(nomic_api_key)
 
 # CONSTANTS
 ITERATION_LIMIT = 2
@@ -250,6 +258,29 @@ Take the above openscad code that you generated and add the following details to
 )
 
 
+
+project= AtlasDataset('bbldrizzy')
+nomic_map = project.maps[0]
+
+def generate_query_embedding(query):
+    return embed.text(
+        texts=[query],
+        model="nomic-embed-text-v1.5",
+        task_type="search_query",
+    )
+
+def similarity_search(query):
+    query_embedding = generate_query_embedding(query)
+    
+    map = project.maps[0]
+    neighbors, _ = map.embeddings.vector_search(queries=numpy.array(query_embedding['embeddings']), k=3)
+    
+    similar_datapoints = project.get_data(ids=neighbors[0])
+    proc_string = 'Here are some relevant examples showing openscad generation: ' + json.dumps(similar_datapoints)
+    return proc_string
+
+
+
 # Function to encode the image
 def encode_image(image_path):
     with open(image_path, "rb") as image_file:
@@ -287,10 +318,11 @@ def render_scad(code: str, generation_id: str, iteration: int) -> bool:
 # Generates OpenSCAD code given an initial prompt
 def generate_scad(input_prompt: str, old_generation_id: str = ""):
     iteration = 0
+    examples = similarity_search(input_prompt)
     if old_generation_id == "":
-        prompt = f"{pre_prompt}\n\n{input_prompt}\n\n{openscad_cheatsheet}"
+        prompt = f"{pre_prompt}\n\n{input_prompt}\n\n{openscad_cheatsheet}\n\n{examples}"
     else:
-        prompt = f"{get_last_generated_scad(old_generation_id)}\n\n{update_prompt}"
+        prompt = f"{get_last_generated_scad(old_generation_id)}\n\n{update_prompt}\n\n{examples}"
     messages = [
         {"role": "system", "content": system_msg},
         {"role": "user", "content": prompt},
