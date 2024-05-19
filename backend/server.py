@@ -28,6 +28,15 @@ def cad():
 
 
 @cross_origin()
+@app.route("/models/generated/<generation_id>", methods=["GET"])
+def get_iterations(generation_id):
+    directory = os.path.join("generated", str(generation_id))
+    if not os.path.exists(directory):
+        abort(404, description="Resource not found")
+    iterations = [name for name in os.listdir(directory) if os.path.isdir(os.path.join(directory, name))]
+    return jsonify(iterations)
+
+@cross_origin()
 @app.route("/models/generated/<generation_id>/<iteration>/output.stl")
 def serve_stl(generation_id, iteration):
     return serve_file(generation_id, iteration, "output.stl")

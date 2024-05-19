@@ -1,12 +1,17 @@
 "use client";
+"use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef } from 'react';
 import "../../dist/three-cad-viewer/three-cad-viewer.css";
-import { Viewer } from "../../dist/three-cad-viewer/three-cad-viewer.esm.js";
+import { Viewer, Display } from "../../dist/three-cad-viewer/three-cad-viewer.esm.js";
 
-function nc(change) {}
+function nc(change) {
+  console.log("NOTIFY:", JSON.stringify(change, null, 2));
+}
 
 export interface CadViewerProps {
+  cadShapes?: any;
+  stlFileUrl?: string;
   cadShapes?: any;
   stlFileUrl?: string;
 }

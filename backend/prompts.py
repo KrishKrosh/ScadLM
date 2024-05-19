@@ -227,3 +227,127 @@ Take the above openscad code that you generated and add the following details to
     + work_harder_prompt
     + code_prefix_prompt
 )
+<<<<<<< HEAD:backend/prompts.py
+=======
+
+
+# Function to encode the image
+def encode_image(image_path):
+    with open(image_path, "rb") as image_file:
+        return base64.b64encode(image_file.read()).decode("utf-8")
+
+
+def get_last_generated_iteration(generation_id: str):
+    iteration = 0
+    while os.path.exists(f"generated/{generation_id}/{iteration}"):
+        iteration += 1
+    return iteration - 1
+
+
+def get_last_generated_scad(generation_id: str):
+    iteration = get_last_generated_iteration(generation_id)
+    # get code from last iteration file
+    with open(f"generated/{generation_id}/{iteration}/output.scad", "r") as file:
+        code = file.read()
+    return code
+
+
+# uses openscad to render the code.
+# creates .scad, .png, and .stl files
+# places them in /generated/{generation_id}/{iteration}/output.{filetype}
+def render_scad(code: str, generation_id: str, iteration: int) -> bool:
+    # Ensure the output directory exists
+    output_dir = f"generated/{generation_id}/{iteration}"
+    os.makedirs(output_dir, exist_ok=True)
+    
+    # Write the SCAD code to a file
+    scad_file = f"{output_dir}/output.scad"
+    with open(scad_file, 'w') as file:
+        file.write(code)
+    
+    # Generate STL file
+    stl_command = f"openscad -o {output_dir}/output.stl {scad_file}"
+    stl_success = os.system(stl_command) == 0
+    
+    # Call the bash script to generate images
+    bash_script = "./scad2image.sh"
+    bash_command = f"{bash_script} {scad_file}"
+    png_success = os.system(bash_command) == 0
+
+    # Check if the final combined image is created
+    final_image_path = f"{output_dir}/renders/final_image.png"
+    if png_success and os.path.exists(final_image_path):
+        # Move the final image to the output directory
+        os.rename(final_image_path, f"{output_dir}/output.png")
+        return stl_success
+    else:
+        return False
+
+
+# Generates OpenSCAD code given an initial prompt
+def generate_scad(input_prompt: str, old_generation_id: str = ""):
+    iteration = 0
+    if old_generation_id == "":
+        prompt = f"{pre_prompt}\n\n{input_prompt}\n\n{openscad_cheatsheet}"
+    else:
+        prompt = f"{get_last_generated_scad(old_generation_id)}\n\n{update_prompt}"
+    messages = [
+        {"role": "system", "content": system_msg},
+        {"role": "user", "content": prompt},
+    ]
+    response = ""
+
+    # make the generation id the current time
+    generation_id = datetime.now().strftime("%Y%m%d%H%M%S")
+
+    while iteration < ITERATION_LIMIT:
+        response = client.chat.completions.create(
+            model="gpt-4-vision-preview", messages=messages
+        )
+
+        print("response", response)
+
+        # get output from last message
+        output = response.choices[0].message.content
+
+        # append output to messages
+        messages.append({"role": "assistant", "content": output})
+
+        code = ""
+        if "```" in output:
+            code = output.split("```")[1].strip("openscad")
+        elif "YES" in output:
+            print("finished generation")
+            return generation_id, iteration - 1
+        else:
+            print("no code found")
+            messages.append({"role": "user", "content": no_compile_prompt})
+            continue
+
+        print(code)
+
+        if not render_scad(code, generation_id, iteration=iteration):
+            print("code does not compile")
+            messages.append({"role": "user", "content": no_compile_prompt})
+            continue
+
+        last_generated_image = f"generated/{generation_id}/{iteration}/output.png"
+        messages.append(
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "image_url",
+                        "image_url": {
+                            "url": f"data:image/jpeg;base64,{encode_image(last_generated_image)}",
+                        },
+                    },
+                    {"type": "text", "text": feedback_prompt},
+                ],
+            }
+        )
+
+        iteration += 1
+
+    return generation_id, iteration - 1
+>>>>>>> ae537af (added image check):generate.py
