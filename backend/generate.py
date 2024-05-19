@@ -258,9 +258,9 @@ Take the above openscad code that you generated and add the following details to
 )
 
 
-
-project= AtlasDataset('bbldrizzy')
+project = AtlasDataset("bbldrizzy")
 nomic_map = project.maps[0]
+
 
 def generate_query_embedding(query):
     return embed.text(
@@ -269,16 +269,21 @@ def generate_query_embedding(query):
         task_type="search_query",
     )
 
+
 def similarity_search(query):
     query_embedding = generate_query_embedding(query)
-    
-    map = project.maps[0]
-    neighbors, _ = map.embeddings.vector_search(queries=numpy.array(query_embedding['embeddings']), k=3)
-    
-    similar_datapoints = project.get_data(ids=neighbors[0])
-    proc_string = 'Here are some relevant examples showing openscad generation: ' + json.dumps(similar_datapoints)
-    return proc_string
 
+    map = project.maps[0]
+    neighbors, _ = map.embeddings.vector_search(
+        queries=numpy.array(query_embedding["embeddings"]), k=3
+    )
+
+    similar_datapoints = project.get_data(ids=neighbors[0])
+    proc_string = (
+        "Here are some relevant examples showing openscad generation: "
+        + json.dumps(similar_datapoints)
+    )
+    return proc_string
 
 
 # Function to encode the image
@@ -320,7 +325,9 @@ def generate_scad(input_prompt: str, old_generation_id: str = ""):
     iteration = 0
     examples = similarity_search(input_prompt)
     if old_generation_id == "":
-        prompt = f"{pre_prompt}\n\n{input_prompt}\n\n{openscad_cheatsheet}\n\n{examples}"
+        prompt = (
+            f"{pre_prompt}\n\n{input_prompt}\n\n{openscad_cheatsheet}\n\n{examples}"
+        )
     else:
         prompt = f"{get_last_generated_scad(old_generation_id)}\n\n{update_prompt}\n\n{examples}"
     messages = [
