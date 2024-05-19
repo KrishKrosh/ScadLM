@@ -4,20 +4,27 @@ from openai import OpenAI
 from datetime import datetime
 from dotenv import load_dotenv
 import base64
+import requests
 
 load_dotenv()
 
 endpoint_id = os.environ.get("RUNPOD_ENDPOINT_ID")
-# api_key = os.environ.get("RUNPOD_API_KEY")
-api_key = os.environ.get("OPENAI_API_KEY")
+api_key = os.environ.get("RUNPOD_API_KEY")
+# api_key = os.environ.get("OPENAI_API_KEY")
 
-client = OpenAI(
-    # base_url=f"https://api.runpod.ai/v2/{endpoint_id}/openai/v1",
-    api_key=api_key,
-)
+header = {
+    "Authorization": "Bearer " + api_key,
+}
+
+runpod_endpoint = "https://api.runpod.ai/v2/" + endpoint_id
+
 
 # CONSTANTS
 ITERATION_LIMIT = 2
+
+max_tokens = 4096
+temperature = 0.9
+feature_size = 576
 
 system_msg = "You are an assistant that helps with generating OpenSCAD code."
 
@@ -284,8 +291,44 @@ def render_scad(code: str, generation_id: str, iteration: int) -> bool:
     return png_success and stl_success
 
 
+def convert_to_input_form(messages):
+    # Initialize variables to store the last image_url and the prompt text
+    image_url = None
+    prompt = ""
+    image_url = ""
+
+    # Iterate through the messages to find the relevant fields
+    for msg in messages:
+        if msg["role"] == "user" and isinstance(msg["content"], list):
+            for content in msg["content"]:
+                if content["type"] == "image_url":
+                    image_url = content["image_url"]["url"]
+                elif content["type"] == "text":
+                    prompt += f"\n{msg['role'].upper()}: {content['text']}"
+
+    # Construct the input prompt
+    if image_url != "":
+        prompt = "<image>" * feature_size + prompt
+
+    # Create the final dictionary
+    input_form = {
+        "input": {
+            "prompt": prompt,
+            "image_url": image_url,
+            "sampling_params": {
+                "max_tokens": max_tokens,
+                "temperature": temperature,
+            },
+        }
+    }
+
+    return input_form
+
+
 # Generates OpenSCAD code given an initial prompt
 def generate_scad(input_prompt: str, old_generation_id: str = ""):
+    print("Generating OpenSCAD code with prompt:", input_prompt)
+
     iteration = 0
     if old_generation_id == "":
         prompt = f"{pre_prompt}\n\n{input_prompt}\n\n{openscad_cheatsheet}"
@@ -301,14 +344,19 @@ def generate_scad(input_prompt: str, old_generation_id: str = ""):
     generation_id = datetime.now().strftime("%Y%m%d%H%M%S")
 
     while iteration < ITERATION_LIMIT:
-        response = client.chat.completions.create(
-            model="gpt-4-vision-preview", messages=messages
-        )
+        # response = client.chat.completions.create(
+        #     model="gpt-4-vision-preview", messages=messages
+        # )
+        response = requests.post(
+            runpod_endpoint + "/runsync",
+            json=convert_to_input_form(messages),
+            headers=header,
+        )  # /runsync is synchronous, you can do async non-streaming with /run
 
-        print("response", response)
+        print("\nRESPONSE:\n", response.json())
 
         # get output from last message
-        output = response.choices[0].message.content
+        output = response.json()["output"][0]["choices"][0]["tokens"][0]
 
         # append output to messages
         messages.append({"role": "assistant", "content": output})
@@ -338,7 +386,7 @@ def generate_scad(input_prompt: str, old_generation_id: str = ""):
                 "content": [
                     {
                         "type": "image_url",
-                        "image_url": {
+                        "base64_image": {
                             "url": f"data:image/jpeg;base64,{encode_image(last_generated_image)}",
                         },
                     },
