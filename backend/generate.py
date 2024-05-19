@@ -23,6 +23,7 @@ endpoint_id = os.environ.get("RUNPOD_ENDPOINT_ID")
 # api_key = os.environ.get("RUNPOD_API_KEY")
 api_key = os.environ.get("OPENAI_API_KEY")
 nomic_api_key = os.environ.get("NOMIC_API_KEY")
+llava_proxy = os.environ.get("LLAVA_PROXY")
 
 
 client = OpenAI(
@@ -71,7 +72,7 @@ def query_llava_endpoint(input_prompt: str, image_encoded: str = None):
     if image_encoded:
         payload["image"] = image_encoded
     response = requests.post(
-        "https://c2r4op3o0jj6jx-8000.proxy.runpod.net/process",
+        llava_proxy,
         json=payload,
     )
     return response.json()
