@@ -1,0 +1,2545 @@
+DESCRIPTION,OPENSCAD CODE
+Nut,"type = ""nut""; // [nut, bolt, rod, washer]
+
+nut_type = ""normal""; // [normal, wingnut]
+nut_diameter = 12;
+nut_height = 6;
+nut_thread_outer_diameter = 9;
+nut_thread_step = 2;
+nut_step_shape_degrees = 45;
+wing_ratio = 1;
+wing_radius = wing_ratio * nut_height;
+
+facets = 6;
+resolution = 0.5;
+nut_resolution = resolution;
+
+if (type == ""nut"" && nut_type == ""normal"") {
+    hex_nut(nut_diameter, nut_height, nut_thread_step, nut_step_shape_degrees, nut_thread_outer_diameter, nut_resolution);
+}
+
+if (type == ""nut"" && nut_type == ""wingnut"") {
+    rotate([0, 0, 30]) hex_nut(nut_diameter, nut_height, nut_thread_step, nut_step_shape_degrees, nut_thread_outer_diameter, nut_resolution);
+    translate([(nut_diameter / 2) + wing_radius - 1, 1.5, wing_radius / 2 + 1]) rotate([90, 0, 0]) wing();
+    mirror(1, 0, 0) translate([(nut_diameter / 2) + wing_radius - 1, 1.5, wing_radius / 2 + 1]) rotate([90, 0, 0]) wing();
+}
+
+module hex_nut(df, hg, sth, clf, cod, crs) {
+    difference() {
+        hex_head(hg, df);
+        hex_countersink_ends(sth / 2, cod, clf, crs, hg);
+        screw_thread(cod, sth, clf, hg, crs, -2);
+    }
+}
+
+module hex_head(hg, df) {
+    rd0 = df / 2 / sin(60);
+    x0 = 0; x1 = df / 2; x2 = x1 + hg / 2;
+    y0 = 0; y1 = hg / 2; y2 = hg;
+
+    intersection() {
+        cylinder(h = hg, r = rd0, $fn = facets, center = false);
+        rotate_extrude(convexity = 10, $fn = 6 * round(df * PI / 6 / 0.5))
+        polygon([[x0, y0], [x1, y0], [x2, y1], [x1, y2], [x0, y2]]);
+    }
+}
+
+module hex_countersink_ends(chg, cod, clf, crs, hg) {
+    translate([0, 0, -0.1])
+    cylinder(h = chg + 0.01,
+        r1 = cod / 2,
+        r2 = cod / 2 - (chg + 0.1) * cos(clf) / sin(clf),
+        $fn = floor(cod * PI / crs), center = false);
+
+    translate([0, 0, hg - chg + 0.1])
+    cylinder(h = chg + 0.01,
+        r1 = cod / 2 - (chg + 0.1) * cos(clf) / sin(clf),
+        r2 = cod / 2,
+        $fn = floor(cod * PI / crs), center = false);
+}
+
+module screw_thread(od, st, lf0, lt, rs, cs) {
+    or = od / 2;
+    ir = or - st / 2 * cos(lf0) / sin(lf0);
+    pf = 2 * PI * or;
+    sn = floor(pf / rs);
+    lfxy = 360 / sn;
+    ttn = round(lt / st + 1);
+    zt = st / sn;
+
+    intersection() {
+        if (cs >= -1) {
+            thread_shape(cs, lt, or, ir, sn, st);
+        }
+        full_thread(ttn, st, sn, zt, lfxy, or, ir);
+    }
+}
+
+module thread_shape(cs, lt, or, ir, sn, st) {
+    if (cs == 0) {
+        cylinder(h = lt, r = or, $fn = sn, center = false);
+    } else {
+        union() {
+            translate([0, 0, st / 2])
+            cylinder(h = lt - st + 0.005, r = or, $fn = sn, center = false);
+
+            if (cs == -1 || cs == 2) {
+                cylinder(h = st / 2, r1 = ir, r2 = or, $fn = sn, center = false);
+            } else {
+                cylinder(h = st / 2, r = or, $fn = sn, center = false);
+            }
+
+            translate([0, 0, lt - st / 2])
+            if (cs == 1 || cs == 2) {
+                cylinder(h = st / 2, r1 = or, r2 = ir, $fn = sn, center = false);
+            } else {
+                cylinder(h = st / 2, r = or, $fn = sn, center = false);
+            }
+        }
+    }
+}
+
+module full_thread(ttn, st, sn, zt, lfxy, or, ir) {
+    if (ir >= 0.2) {
+        for (i = [0:ttn - 1]) {
+            for (j = [0:sn - 1]) {
+                pt = [[0, 0, i * st - st],
+                      [ir * cos(j * lfxy), ir * sin(j * lfxy), i * st + j * zt - st],
+                      [ir * cos((j + 1) * lfxy), ir * sin((j + 1) * lfxy), i * st + (j + 1) * zt - st],
+                      [0, 0, i * st],
+                      [or * cos(j * lfxy), or * sin(j * lfxy), i * st + j * zt - st / 2],
+                      [or * cos((j + 1) * lfxy), or * sin((j + 1) * lfxy), i * st + (j + 1) * zt - st / 2],
+                      [ir * cos(j * lfxy), ir * sin(j * lfxy), i * st + j * zt],
+                      [ir * cos((j + 1) * lfxy), ir * sin((j + 1) * lfxy), i * st + (j + 1) * zt],
+                      [0, 0, i * st + st]];
+                
+                polyhedron(points = pt, faces = [
+                    [1, 0, 3], [1, 3, 6], [6, 3, 8], [1, 6, 4],
+                    [0, 1, 2], [1, 4, 2], [2, 4, 5], [5, 4, 6], [5, 6, 7], [7, 6, 8],
+                    [7, 8, 3], [0, 2, 3], [3, 2, 7], [7, 2, 5]
+                ]);
+            }
+        }
+    } else {
+        echo(""Step Degrees too aggressive, the thread will not be made!!"");
+        echo(""Try to increase the value for the degrees and/or..."");
+        echo("" decrease the pitch value and/or..."");
+        echo("" increase the outer diameter value."");
+    }
+}
+
+module wing() {
+    difference() {
+        cylinder(r = wing_radius, h = 3, $fn = 64);
+        union() {
+            translate([-wing_radius, -wing_radius - 1, -0.5])
+            cube([wing_radius * 2, wing_radius / 2, wing_radius * 2]);
+            rotate([0, 0, 90])
+            translate([-wing_radius, wing_radius - 1, -0.5])
+            cube([wing_radius * 2, wing_radius / 2, wing_radius * 2]);
+        }
+    }
+}"
+"Cube: 
+     parameters:
+
+        size
+
+            single value, cube with all sides this length
+            3 value array [x,y,z], cube with dimensions x, y and z.
+
+        center
+
+            false (default), 1st (positive) octant, one corner at (0,0,0)
+            true, cube is centered at (0,0,0)","cube(size = [x,y,z], center = true/false); cube(size = x , center = true/false);"
+Text on a cube,"
+echo(version=version());
+
+font = ""Liberation Sans""; //[""Liberation Sans"", ""Liberation Sans:style=Bold"", ""Liberation Sans:style=Italic"", ""Liberation Mono"", ""Liberation Serif""]
+
+cube_size = 60;
+letter_size = 50;
+letter_height = 5;
+
+o = cube_size / 2 - letter_height / 2;
+
+module letter(l) {
+  // Use linear_extrude() to make the letters 3D objects as they
+  // are only 2D shapes when only using text()
+  linear_extrude(height = letter_height) {
+    text(l, size = letter_size, font = font, halign = ""center"", valign = ""center"", $fn = 16);
+  }
+}
+
+difference() {
+  union() {
+    color(""gray"") cube(cube_size, center = true);
+    translate([0, -o, 0]) rotate([90, 0, 0]) letter(""C"");
+    translate([o, 0, 0]) rotate([90, 0, 90]) letter(""U"");
+    translate([0, o, 0]) rotate([90, 0, 180]) letter(""B"");
+    translate([-o, 0, 0]) rotate([90, 0, -90]) letter(""E"");
+  }
+
+  // Put some symbols on top and bottom using symbols from the
+  // Unicode symbols table.
+  // (see https://en.wikipedia.org/wiki/Miscellaneous_Symbols)
+  //
+  // Note that depending on the font used, not all the symbols
+  // are actually available.
+  translate([0, 0, o])  letter(""\u263A"");
+  translate([0, 0, -o - letter_height])  letter(""\u263C"");
+}"
+"Drawer Chest:
+This is an early test of a little chest of drawers, but this time with a hexagonal pattern on the sides.  
+
+It's inspired by FatalError3141's original (and compatible with his drawers) and is based on my own customizable version of the same.  
+
+I haven't published it as a customizer yet, and it is work-in-progress, because my math on the hex pattern is really shoddy! When I clean it up I'll set it up as a customizer.  
+
+In the meantime, you can download the OpenSCAD file and fiddle with it to your heart's content.  
+
+Update: Added a slight bump to the inside of the drawer box, and two matching dimples in the bottom of the drawers. This helps the drawers ""lock"" when in the closed position, and prevents them from falling out when opened.  
+
+Still working on the hex math, will make it a customizer when that is done.","use <write.scad>;
+
+part = ""drawerbox""; // [drawer1, drawer2, drawer3, drawer4, drawerbox]
+
+NUM_DRAWERS = 5;
+DRAWER_HEIGHT = 15;
+DRAWER_DEPTH = 59;
+DRAWER_WIDTH = 80;
+MESSAGE = "" "";
+TEXT_HEIGHT = 6;
+india = 6;
+spacing = 1.2;
+dia = india + (spacing * 2);
+hoff = india + spacing;
+voff = sqrt(pow(hoff, 2) - pow(hoff / 2, 2));
+HANDLE_SIZE = 10;
+DRAWER_CORNER_RAD = 2;
+CLEARANCE = 0.25;
+WALL_THICK = 1.6;
+FLOOR_THICK = 1.2;
+FILLETS = true;
+
+$fn = 32;
+NOFILLETS = !FILLETS;
+WALL_WIDTH = WALL_THICK + 0.001;
+INNER_FILLET = DRAWER_CORNER_RAD - (WALL_WIDTH / 1.25);
+BOX_HEIGHT = NUM_DRAWERS * (DRAWER_HEIGHT + CLEARANCE * 2 + WALL_WIDTH) + WALL_WIDTH;
+BOX_WIDTH = DRAWER_WIDTH + CLEARANCE * 2 + WALL_WIDTH * 2;
+BOX_DEPTH = DRAWER_DEPTH + CLEARANCE + WALL_WIDTH;
+thick = WALL_THICK + 0.2;
+bumprad = 1;
+earthick = 0.6;
+earrad = 10;
+
+print_part();
+
+module print_part() {
+    if (part == ""drawer1"") {
+        drawer1();
+    } else if (part == ""drawer2"") {
+        drawer2();
+    } else if (part == ""drawer3"") {
+        drawer3();
+    } else if (part == ""drawer4"") {
+        drawer4();
+    } else {
+        drawerbox();
+    }
+}
+
+module drawerbox() {
+    translate([-BOX_WIDTH / 2, -BOX_DEPTH / 2, 0])
+    union() {
+        difference() {
+            cube([BOX_WIDTH, BOX_DEPTH, BOX_HEIGHT]);
+            for (i = [0:NUM_DRAWERS - 1]) {
+                translate([WALL_WIDTH, -1, i * (DRAWER_HEIGHT + CLEARANCE * 2 + WALL_WIDTH) + WALL_WIDTH])
+                cube([DRAWER_WIDTH + CLEARANCE * 2, DRAWER_DEPTH + CLEARANCE + 1, DRAWER_HEIGHT + CLEARANCE * 2]);
+            }
+            translate([0, BOX_DEPTH + 0.1, 0])
+            holes(BOX_WIDTH, BOX_HEIGHT);
+            rotate([0, 0, 90]) translate([hoff / 2, 0.1, 0]) holes(BOX_DEPTH, BOX_HEIGHT);
+            rotate([0, 0, 90]) translate([hoff / 2, -BOX_WIDTH + WALL_WIDTH + 0.1, 0]) holes(BOX_DEPTH, BOX_HEIGHT);
+        }
+        for (i = [0:NUM_DRAWERS - 1]) {
+            translate([BOX_WIDTH / 2, DRAWER_CORNER_RAD * 2, i * (DRAWER_HEIGHT + CLEARANCE * 2 + WALL_WIDTH) + WALL_WIDTH - 0.1])
+            {
+                scale([1, 1, 0.9]) half_sphere(bumprad);
+                translate([0, 0, DRAWER_HEIGHT + CLEARANCE * 2 + 0.2]) rotate([180, 0, 0])
+                scale([1, 1, 0.9]) half_sphere(bumprad);
+            }
+        }
+        translate([-earrad / 2, BOX_DEPTH, -earrad / 2]) rotate([90, 0, 0]) cylinder(r = earrad, h = earthick);
+        translate([BOX_WIDTH + earrad / 2, BOX_DEPTH, -earrad / 2]) rotate([90, 0, 0]) cylinder(r = earrad, h = earthick);
+        translate([-earrad / 2, BOX_DEPTH, BOX_HEIGHT + earrad / 2]) rotate([90, 0, 0]) cylinder(r = earrad, h = earthick);
+        translate([BOX_WIDTH + earrad / 2, BOX_DEPTH, BOX_HEIGHT + earrad / 2]) rotate([90, 0, 0]) cylinder(r = earrad, earthick);
+    }
+}
+
+module drawer1() {
+    difference() {
+        drawerbase();
+        translate([0, 0, FLOOR_THICK + DRAWER_CORNER_RAD / 2])
+        roundedBox([DRAWER_WIDTH - (WALL_WIDTH * 2), DRAWER_DEPTH - (WALL_WIDTH * 2), DRAWER_HEIGHT + DRAWER_CORNER_RAD], INNER_FILLET, NOFILLETS);
+    }
+}
+
+module drawer2() {
+    difference() {
+        drawerbase();
+        translate([-(DRAWER_WIDTH / 4 - WALL_WIDTH / 4), 0, FLOOR_THICK + DRAWER_CORNER_RAD / 2])
+        roundedBox([DRAWER_WIDTH / 2 - (WALL_WIDTH * 1.5), DRAWER_DEPTH - (WALL_WIDTH * 2), DRAWER_HEIGHT + DRAWER_CORNER_RAD], INNER_FILLET, NOFILLETS);
+        translate([DRAWER_WIDTH / 4 - WALL_WIDTH / 4, 0, FLOOR_THICK + DRAWER_CORNER_RAD / 2])
+        roundedBox([DRAWER_WIDTH / 2 - (WALL_WIDTH * 1.5), DRAWER_DEPTH - (WALL_WIDTH * 2), DRAWER_HEIGHT + DRAWER_CORNER_RAD], INNER_FILLET, NOFILLETS);
+    }
+}
+
+module drawer3() {
+    difference() {
+        drawerbase();
+        translate([-(DRAWER_WIDTH / 4 - WALL_WIDTH / 4), 0, FLOOR_THICK + DRAWER_CORNER_RAD / 2])
+        roundedBox([DRAWER_WIDTH / 2 - (WALL_WIDTH * 1.5), DRAWER_DEPTH - (WALL_WIDTH * 2), DRAWER_HEIGHT + DRAWER_CORNER_RAD], INNER_FILLET, NOFILLETS);
+        translate([DRAWER_WIDTH / 4 - WALL_WIDTH / 4, DRAWER_DEPTH / 4 - WALL_WIDTH / 4, FLOOR_THICK + DRAWER_CORNER_RAD / 2])
+        roundedBox([DRAWER_WIDTH / 2 - (WALL_WIDTH * 1.5), DRAWER_DEPTH / 2 - (WALL_WIDTH * 1.5), DRAWER_HEIGHT + DRAWER_CORNER_RAD], INNER_FILLET, NOFILLETS);
+        translate([DRAWER_WIDTH / 4 - WALL_WIDTH / 4, -(DRAWER_DEPTH / 4 - WALL_WIDTH / 4), FLOOR_THICK + DRAWER_CORNER_RAD / 2])
+        roundedBox([DRAWER_WIDTH / 2 - (WALL_WIDTH * 1.5), DRAWER_DEPTH / 2 - (WALL_WIDTH * 1.5), DRAWER_HEIGHT + DRAWER_CORNER_RAD], INNER_FILLET, NOFILLETS);
+    }
+}
+
+module drawer4() {
+    difference() {
+        drawerbase();
+        translate([-(DRAWER_WIDTH / 4 - WALL_WIDTH / 4), DRAWER_DEPTH / 4 - WALL_WIDTH / 4, FLOOR_THICK + DRAWER_CORNER_RAD / 2])
+        roundedBox([DRAWER_WIDTH / 2 - (WALL_WIDTH * 1.5), DRAWER_DEPTH / 2 - (WALL_WIDTH * 1.5), DRAWER_HEIGHT + DRAWER_CORNER_RAD], INNER_FILLET, NOFILLETS);
+        translate([-(DRAWER_WIDTH / 4 - WALL_WIDTH / 4), -(DRAWER_DEPTH / 4 - WALL_WIDTH / 4), FLOOR_THICK + DRAWER_CORNER_RAD / 2])
+        roundedBox([DRAWER_WIDTH / 2 - (WALL_WIDTH * 1.5), DRAWER_DEPTH / 2 - (WALL_WIDTH * 1.5), DRAWER_HEIGHT + DRAWER_CORNER_RAD], INNER_FILLET, NOFILLETS);
+        translate([DRAWER_WIDTH / 4 - WALL_WIDTH / 4, DRAWER_DEPTH / 4 - WALL_WIDTH / 4, FLOOR_THICK + DRAWER_CORNER_RAD / 2])
+        roundedBox([DRAWER_WIDTH / 2 - (WALL_WIDTH * 1.5), DRAWER_DEPTH / 2 - (WALL_WIDTH * 1.5), DRAWER_HEIGHT + DRAWER_CORNER_RAD], INNER_FILLET, NOFILLETS);
+        translate([DRAWER_WIDTH / 4 - WALL_WIDTH / 4, -(DRAWER_DEPTH / 4 - WALL_WIDTH / 4), FLOOR_THICK + DRAWER_CORNER_RAD / 2])
+        roundedBox([DRAWER_WIDTH / 2 - (WALL_WIDTH * 1.5), DRAWER_DEPTH / 2 - (WALL_WIDTH * 1.5), DRAWER_HEIGHT + DRAWER_CORNER_RAD], INNER_FILLET, NOFILLETS);
+    }
+}
+
+module drawerbase() {
+    union() {
+        difference() {
+            translate([0, 0, DRAWER_CORNER_RAD / 2]) roundedBox([DRAWER_WIDTH, DRAWER_DEPTH, DRAWER_HEIGHT + DRAWER_CORNER_RAD], DRAWER_CORNER_RAD, NOFILLETS);
+            translate([0, 0, DRAWER_HEIGHT]) cube([DRAWER_WIDTH + 1, DRAWER_DEPTH + 1, DRAWER_HEIGHT], center = true);
+            translate([0, -DRAWER_DEPTH / 2 + DRAWER_CORNER_RAD * 2, -DRAWER_HEIGHT / 2]) scale([1.2, 1.2, 1.]) sphere(bumprad);
+            translate([0, DRAWER_DEPTH / 2 - DRAWER_CORNER_RAD * 2, -DRAWER_HEIGHT / 2]) scale([1.2, 1.2, 1.]) sphere(bumprad);
+        }
+        translate([0, -DRAWER_DEPTH / 2, -DRAWER_HEIGHT / 2 + FLOOR_THICK])
+        handle();
+        translate([-DRAWER_WIDTH / 2 + DRAWER_CORNER_RAD, -DRAWER_DEPTH / 2 + 0.5, -DRAWER_HEIGHT / 4 + DRAWER_CORNER_RAD / 2]) rotate([90, 0, 0])
+        write(MESSAGE, h = TEXT_HEIGHT, font = ""Orbitron.dxf"");
+    }
+}
+
+module handle() {
+    difference() {
+        roundedBox([DRAWER_WIDTH / 4, HANDLE_SIZE * 2, FLOOR_THICK * 2], 2, true);
+        translate([0, HANDLE_SIZE, 0]) cube([DRAWER_WIDTH / 4 + 1, HANDLE_SIZE * 2, FLOOR_THICK * 2 + 1], center = true);
+    }
+    difference() {
+        translate([0, -DRAWER_CORNER_RAD / 2, FLOOR_THICK + DRAWER_CORNER_RAD / 2])
+        cube([DRAWER_WIDTH / 4, DRAWER_CORNER_RAD, DRAWER_CORNER_RAD], center = true);
+        translate([-DRAWER_WIDTH / 8 - 1, -DRAWER_CORNER_RAD, FLOOR_THICK + DRAWER_CORNER_RAD]) rotate([0, 90, 0])
+        cylinder(h = DRAWER_WIDTH / 4 + 2, r = DRAWER_CORNER_RAD);
+    }
+    difference() {
+        translate([-DRAWER_WIDTH / 8, 0, -FLOOR_THICK])
+        cube([DRAWER_WIDTH / 4, DRAWER_CORNER_RAD, DRAWER_CORNER_RAD], center = false);
+        translate([-DRAWER_WIDTH / 8 - 1, DRAWER_CORNER_RAD, -FLOOR_THICK + DRAWER_CORNER_RAD]) rotate([0, 90, 0])
+        cylinder(h = DRAWER_WIDTH / 4 + 2, r = DRAWER_CORNER_RAD);
+    }
+}
+
+module holes(width, height) {
+    cols = width / hoff - DRAWER_CORNER_RAD;
+    rows = height / voff - DRAWER_CORNER_RAD;
+
+    translate([hoff * 1.3, 0, voff * 2])
+    for (i = [0:rows - 1]) {
+        for (j = [0:cols - 1]) {
+            translate([j * hoff + i % 2 * (hoff / 2), 0, i * voff])
+            rotate([90, 90, 0]) rotate([0, 0, 0]) cylinder(h = thick, r = india / 2, $fn = 6);
+        }
+    }
+}
+
+module half_sphere(rad) {
+    difference() {
+        sphere(rad);
+        translate([-rad, -rad, -rad])
+        cube([rad * 2, rad * 2, rad]);
+    }
+}
+
+module roundedBox(size, radius, sidesonly) {
+    rot = [[0, 0, 0], [90, 0, 90], [90, 90, 0]];
+    if (sidesonly) {
+        cube(size - [2 * radius, 0, 0], true);
+        cube(size - [0, 2 * radius, 0], true);
+        for (x = [radius - size[0] / 2, -radius + size[0] / 2], y = [radius - size[1] / 2, -radius + size[1] / 2]) {
+            translate([x, y, 0]) cylinder(r = radius, h = size[2], center = true);
+        }
+    } else {
+        cube([size[0], size[1] - radius * 2, size[2] - radius * 2], center = true);
+        cube([size[0] - radius * 2, size[1], size[2] - radius * 2], center = true);
+        cube([size[0] - radius * 2, size[1] - radius * 2, size[2]], center = true);
+
+        for (axis = [0:2]) {
+            for (x = [radius - size[axis] / 2, -radius + size[axis] / 2], y = [radius - size[(axis + 1) % 3] / 2, -radius + size[(axis + 1) % 3] / 2]) {
+                rotate(rot[axis])
+                translate([x, y, 0])
+                cylinder(h = size[(axis + 2) % 3] - 2 * radius, r = radius, center = true);
+            }
+        }
+        for (x = [radius - size[0] / 2, -radius + size[0] / 2], y = [radius - size[1] / 2, -radius + size[1] / 2], z = [radius - size[2] / 2, -radius + size[2] / 2]) {
+            translate([x, y, z]) sphere(radius);
+        }
+    }
+}"
+Lego Toy Block with 12 letters on top of each protrusion (cylinder),"
+$fn=50;
+
+pegtext2=[[""B"",""R"",""I"",""C"",""K"",""S""],[""B"",""U"",""I"",""L"",""D""]];
+
+difference(){
+    cube([55.80,16.80,9.60]);
+    translate([1.45,1.45])
+    cube([52.90,13.90,8.60]);
+}
+
+translate([3.90,3.90])
+for (j=[0:1] ){
+    for (i=[0:5] ){
+    translate([i*9.5,j*9.5,9.60]){
+    cylinder(h=1.8,r=2.42);
+    translate([0,0,1.8])
+    linear_extrude(.4)
+    text(pegtext2[j][i], 1.5,halign= ""center"", valign= ""center"");
+    }
+  }  
+}
+
+translate([7.90,7.90])
+for (k=[0:4]){
+    translate([k*9.5,0])
+    difference(){
+    cylinder(h=8.6,r=3.25);
+    cylinder(h=8.6,r=2.40);
+    }
+}"
+"Customizable Card Holder
+Use this customizable cable holder to tie your cables to your desk and prevent them from falling down. The current version only works for desks standing next to a wall and also acts as a spacer between wall and desk.  
+
+08/12/13: Version v2: Wall spacing is now at least thickness of the cable (+ 1.5mm space), everything else just makes no sense when desk stands next to a wall ;)
+
+05/03/17: Version v3: Fixed Customizer. Using the ""Global"" Tab seems to be broken on thingiverse","// Cable Holder by xifle
+// 05.03.2017
+// v3
+
+// preview[view:north, tilt:top diagonal]
+/* [Parameters] */
+
+// The thickness of the table (mm)
+TABLE_HEIGHT = 24.7;
+
+// The depth of the cable holder (mm)
+DEPTH = 30;
+
+// diameter of the cable to hold, some space will be added (mm)
+CABLE = 6;
+
+// height of the cylinder on top of the cable holder clip (mm)
+CYLINDER_HEIGHT = 12;
+
+// wall thickness (mm)
+WALL = 3; 
+
+// space between table and wall, this will be at least the thickness of the cable (plus 1.5mm spacing) (mm)
+WALLTABLESPACE = 3;
+
+/* [Hidden] */
+
+// additional space for cable
+CABLEWSPACE = CABLE+1.5;
+
+$fs = 0.01;
+ADDSPACE = max(max(WALLTABLESPACE,CABLEWSPACE),WALL)-WALL;
+
+//ADDSPACE = WALLTABLESPACE-WALL;
+OUTER_RADIUS = CABLEWSPACE*1.8;
+WIDTH = OUTER_RADIUS*2.3;
+
+rotate([0,180,0])
+difference() {
+union() {
+
+	translate([TABLE_HEIGHT/2+2*WALL+CYLINDER_HEIGHT/2,0,DEPTH/2+WALL+ADDSPACE])
+	rotate([0,90,0])
+	cylinder(h=CYLINDER_HEIGHT, r=OUTER_RADIUS, center=true);
+
+
+	difference() {
+
+	translate([WALL,0,WALL+ADDSPACE/2])
+	cube([TABLE_HEIGHT+2*WALL, WIDTH, DEPTH+ADDSPACE ], center=true);
+
+	translate([WALL, WALL,0])
+	cube([TABLE_HEIGHT, WIDTH*2, DEPTH], center=true);
+
+	}
+
+}
+
+translate([0,0,DEPTH/2+WALL+OUTER_RADIUS+ADDSPACE])
+cube([(TABLE_HEIGHT+2*WALL+CYLINDER_HEIGHT)*2, WIDTH, 2*OUTER_RADIUS], center=true);
+
+translate([0,0,DEPTH/2+WALL+ADDSPACE])
+cube([(TABLE_HEIGHT+2*WALL+CYLINDER_HEIGHT)*2, CABLEWSPACE, CABLEWSPACE*2], center=true);
+
+}"
+"It is a planetary gearset and functions like a cross between a needle bearing and a thrust bearing. No cage is required to keep the rollers in place, because their gearing keeps them perfectly spaced. The gears are all herringbone, which is why it cannot be disassembled and also why it can act as a thrust bearing.","// Planetary gear bearing (customizable)
+
+// outer diameter of ring
+D=51.7;
+// thickness
+T=15;
+// clearance
+tol=0.15;
+number_of_planets=5;
+number_of_teeth_on_planets=7;
+approximate_number_of_teeth_on_sun=9;
+// pressure angle
+P=45;//[30:60]
+// number of teeth to twist across
+nTwist=1;
+// width of hexagonal hole
+w=6.7;
+
+DR=0.5*1;// maximum depth ratio of teeth
+
+m=round(number_of_planets);
+np=round(number_of_teeth_on_planets);
+ns1=approximate_number_of_teeth_on_sun;
+k1=round(2/m*(ns1+np));
+k= k1*m%2!=0 ? k1+1 : k1;
+ns=k*m/2-np;
+echo(ns);
+nr=ns+2*np;
+pitchD=0.9*D/(1+min(PI/(2*nr*tan(P)),PI*DR/nr));
+pitch=pitchD*PI/nr;
+echo(pitch);
+helix_angle=atan(2*nTwist*pitch/T);
+echo(helix_angle);
+
+phi=$t*360/m;
+
+translate([0,0,T/2]){
+	difference(){
+		cylinder(r=D/2,h=T,center=true,$fn=100);
+		herringbone(nr,pitch,P,DR,-tol,helix_angle,T+0.2);
+		difference(){
+			translate([0,-D/2,0])rotate([90,0,0])monogram(h=10);
+			cylinder(r=D/2-0.25,h=T+2,center=true,$fn=100);
+		}
+	}
+	rotate([0,0,(np+1)*180/ns+phi*(ns+np)*2/ns])
+	difference(){
+		mirror([0,1,0])
+			herringbone(ns,pitch,P,DR,tol,helix_angle,T);
+		cylinder(r=w/sqrt(3),h=T+1,center=true,$fn=6);
+	}
+	for(i=[1:m])rotate([0,0,i*360/m+phi])translate([pitchD/2*(ns+np)/nr,0,0])
+		rotate([0,0,i*ns/m*360/np-phi*(ns+np)/np-phi])
+			herringbone(np,pitch,P,DR,tol,helix_angle,T);
+}
+
+module rack(
+	number_of_teeth=15,
+	circular_pitch=10,
+	pressure_angle=28,
+	helix_angle=0,
+	clearance=0,
+	gear_thickness=5,
+	flat=false){
+addendum=circular_pitch/(4*tan(pressure_angle));
+
+flat_extrude(h=gear_thickness,flat=flat)translate([0,-clearance*cos(pressure_angle)/2])
+	union(){
+		translate([0,-0.5-addendum])square([number_of_teeth*circular_pitch,1],center=true);
+		for(i=[1:number_of_teeth])
+			translate([circular_pitch*(i-number_of_teeth/2-0.5),0])
+			polygon(points=[[-circular_pitch/2,-addendum],[circular_pitch/2,-addendum],[0,addendum]]);
+	}
+}
+
+module monogram(h=1)
+linear_extrude(height=h,center=true)
+translate(-[3,2.5])union(){
+	difference(){
+		square([4,5]);
+		translate([1,1])square([2,3]);
+	}
+	square([6,1]);
+	translate([0,2])square([2,1]);
+}
+
+module herringbone(
+	number_of_teeth=15,
+	circular_pitch=10,
+	pressure_angle=28,
+	depth_ratio=1,
+	clearance=0,
+	helix_angle=0,
+	gear_thickness=5){
+union(){
+	gear(number_of_teeth,
+		circular_pitch,
+		pressure_angle,
+		depth_ratio,
+		clearance,
+		helix_angle,
+		gear_thickness/2);
+	mirror([0,0,1])
+		gear(number_of_teeth,
+			circular_pitch,
+			pressure_angle,
+			depth_ratio,
+			clearance,
+			helix_angle,
+			gear_thickness/2);
+}}
+
+module gear (
+	number_of_teeth=15,
+	circular_pitch=10,
+	pressure_angle=28,
+	depth_ratio=1,
+	clearance=0,
+	helix_angle=0,
+	gear_thickness=5,
+	flat=false){
+pitch_radius = number_of_teeth*circular_pitch/(2*PI);
+twist=tan(helix_angle)*gear_thickness/pitch_radius*180/PI;
+
+flat_extrude(h=gear_thickness,twist=twist,flat=flat)
+	gear2D (
+		number_of_teeth,
+		circular_pitch,
+		pressure_angle,
+		depth_ratio,
+		clearance);
+}
+
+module flat_extrude(h,twist,flat){
+	if(flat==false)
+		linear_extrude(height=h,twist=twist,slices=twist/6)child(0);
+	else
+		child(0);
+}
+
+module gear2D (
+	number_of_teeth,
+	circular_pitch,
+	pressure_angle,
+	depth_ratio,
+	clearance){
+pitch_radius = number_of_teeth*circular_pitch/(2*PI);
+base_radius = pitch_radius*cos(pressure_angle);
+depth=circular_pitch/(2*tan(pressure_angle));
+outer_radius = clearance<0 ? pitch_radius+depth/2-clearance : pitch_radius+depth/2;
+root_radius1 = pitch_radius-depth/2-clearance/2;
+root_radius = (clearance<0 && root_radius1<base_radius) ? base_radius : root_radius1;
+backlash_angle = clearance/(pitch_radius*cos(pressure_angle)) * 180 / PI;
+half_thick_angle = 90/number_of_teeth - backlash_angle/2;
+pitch_point = involute (base_radius, involute_intersect_angle (base_radius, pitch_radius));
+pitch_angle = atan2 (pitch_point[1], pitch_point[0]);
+min_radius = max (base_radius,root_radius);
+
+intersection(){
+	rotate(90/number_of_teeth)
+		circle($fn=number_of_teeth*3,r=pitch_radius+depth_ratio*circular_pitch/2-clearance/2);
+	union(){
+		rotate(90/number_of_teeth)
+			circle($fn=number_of_teeth*2,r=max(root_radius,pitch_radius-depth_ratio*circular_pitch/2-clearance/2));
+		for (i = [1:number_of_teeth])rotate(i*360/number_of_teeth){
+			halftooth (
+				pitch_angle,
+				base_radius,
+				min_radius,
+				outer_radius,
+				half_thick_angle);		
+			mirror([0,1])halftooth (
+				pitch_angle,
+				base_radius,
+				min_radius,
+				outer_radius,
+				half_thick_angle);
+		}
+	}
+}}
+
+module halftooth (
+	pitch_angle,
+	base_radius,
+	min_radius,
+	outer_radius,
+	half_thick_angle){
+index=[0,1,2,3,4,5];
+start_angle = max(involute_intersect_angle (base_radius, min_radius)-5,0);
+stop_angle = involute_intersect_angle (base_radius, outer_radius);
+angle=index*(stop_angle-start_angle)/index[len(index)-1];
+p=[[0,0],
+	involute(base_radius,angle[0]+start_angle),
+	involute(base_radius,angle[1]+start_angle),
+	involute(base_radius,angle[2]+start_angle),
+	involute(base_radius,angle[3]+start_angle),
+	involute(base_radius,angle[4]+start_angle),
+	involute(base_radius,angle[5]+start_angle)];
+
+difference(){
+	rotate(-pitch_angle-half_thick_angle)polygon(points=p);
+	square(2*outer_radius);
+}}
+
+// Mathematical Functions
+//===============
+
+// Finds the angle of the involute about the base radius at the given distance (radius) from it's center.
+//source: http://www.mathhelpforum.com/math-help/geometry/136011-circle-involute-solving-y-any-given-x.html
+
+function involute_intersect_angle (base_radius, radius) = sqrt (pow (radius/base_radius, 2) - 1) * 180 / PI;
+
+// Calculate the involute position for a given base radius and involute angle.
+
+function involute (base_radius, involute_angle) =
+[
+	base_radius*(cos (involute_angle) + involute_angle*PI/180*sin (involute_angle)),
+	base_radius*(sin (involute_angle) - involute_angle*PI/180*cos (involute_angle))
+];"
+"A printable OpenSCAD pirate ship.  While it will definitely require support for the bow, the rest of the model should not.  The OpenSCAD code isn't commented at all, so it may be difficult to follow.  
+
+There are two main parameters - ""shipscale"" and ""th.""  The first parameter ""shipscale"" is the size the entire ship is based on.  It roughly corresponds to the overall height of the model.  The second parameter ""th"" refers to the thickness of many of the features.  The STL below has the thickness set to 0.6mm.  It should probably be about 1mm or so for optimal printability.
+
+This ship features three masts with three sails each, a rudder, deck, captain's quarters, bow, and crow's nest.
+
+As an FYI, this pirate ship was made with just ""cubes"" and ""cylinders.""","th = 0.6;
+shipscale=60;
+fn=64;
+
+ship();
+
+module ship(size=shipscale)
+        {
+        sails(size);
+        hull(size);
+        rudder(size);
+        bowsprit(size);
+        % translate([0,0,size/4]) cube(size, center=true);
+        }
+
+module rudder(rh)
+        {
+        intersection()
+                {
+                translate([0,rh*-25/64,rh*-10/64]) cube([th,rh*5/32,rh*13/64], center=true);
+                translate([0,rh*-33/64,rh*-1/64]) rotate([0,90,0]) cylinder(r=rh*8/32,h=th,$fn=fn);        
+                }
+        }
+
+module bowsprit(bs)
+        {
+        translate([0,bs*37/64,bs*3/64]) rotate([290,0,0]) intersection() 
+                {
+                scale([0.5,1,1]) cylinder(r1=bs*8/64,r2=th,h=bs/3,$fn=fn/4,center=true);        
+                translate([0,bs/2,0]) cube(bs,center=true);
+                }
+        }
+
+module hull(hl)
+        {
+        difference()
+                {
+                translate([0,hl*-1/32,-hl*3/32]) union()
+                        {
+                        scale([0.7,2.1,1]) translate([0,0,-hl/12]) 
+                                cylinder(r1=hl/6, r2=hl/4, h=hl/6, $fn=fn,center=true);
+        
+                        difference()
+                                {
+                                scale([0.7,2.1,1]) translate([0,0,hl/12]) 
+                                        cylinder(r=hl/4, h=hl/6, $fn=fn,center=true);
+                                difference()
+                                        {
+                                        scale([0.7,2.1,1]) translate([0,0,hl/12+th/4]) 
+                                                cylinder(r=(hl/4) -th, h=hl/6, $fn=fn,center=true);
+                                        translate([0,-hl*13/32,hl/32]) cube([hl,hl/4,hl/4],center=true);
+                                        translate([0,-hl*12/32,-hl*2/32]) cube([hl,hl/4,hl/4],center=true);
+                                        translate([0,hl*14/32,-hl*2/32]) cube([hl,hl/4,hl/4],center=true);
+                                        translate([0,-hl*15/32,hl/32]) cube([hl,hl/8,hl/2],center=true);
+                                        }
+                                translate([0,hl/4.5,hl/1.7]) cube(hl, center=true);
+                                translate([0,hl*1/32,hl*9/32]) cube(hl/2, center=true);
+                                }
+                        }
+                translate([0,-hl*17/32,hl/32]) cube([hl,hl/8,hl/2],center=true);
+                }
+        }
+        
+module sails(mh)
+        {
+        translate([0,0,mh*-4/62]) 
+                {
+                translate([0,0,mh*28/32]) cylinder(r1=mh*2/64,r2=mh*2.5/64,h=mh*3/64,$fn=fn/4,center=true);
+                translate([0,0,mh*53/64]) cylinder(r1=th/2,r2=mh*2/64,h=mh*3/64,$fn=fn/4,center=true);
+                translate([0,mh/4,0]) rigging(mh*5/6);
+                translate([0,0,0]) rigging(mh);
+                translate([0,-mh/5,0]) rigging(mh*4/6);
+                translate([0,mh*15/32,mh*8/32]) rotate([205,0,0]) scale([1,1,2]) rotate([0,90,0]) 
+                        cylinder(r=mh/5,h=th,$fn=3,center=true);
+                translate([0,mh*-1/32,-mh*1/32]) cube([th,mh*14/16,mh/8],center=true);
+                }
+        }
+
+module rigging(mh=30)
+        {
+        cylinder(r=th*2/3,h=mh*11/12,$fn=fn/4);
+        rotate([0,-90,0]) 
+        translate([mh/2,0,0]) union() 
+                {
+                translate([0,-mh/64,0]) intersection()
+                        {
+                        difference()
+                                {
+                                scale([1,0.67,1]) translate([-mh/6,0,0]) 
+                                        cylinder(r=mh/1.5,h=th,$fn=3,center=true);
+                                translate([0,-mh*5/6,0]) rotate([0,0,27.5]) scale([2,1,1]) 
+                                        cylinder(r=mh/1.5,h=th+1,$fn=fn,center=true);
+                                }
+                        translate([0,-mh*1/1.9,0]) rotate([0,0,-27.5]) scale([2,1,1]) 
+                                cylinder(r=mh/1.5,h=th+1,$fn=fn,center=true);
+                        }
+                translate([0,mh/16,0]) mast(mh);
+                }
+        }
+
+module mast(mh=30)
+        {
+        translate([-mh/4,0,0]) sail(mh/4);
+        translate([mh/8,-th*1.5,0]) sail(mh/8);
+        translate([mh*5/16,-th*2,0]) sail(mh/16);
+        }
+
+module sail(size)
+        {
+        intersection()
+                {
+                scale([1.5,1,1]) translate([0,-size,0]) difference()
+                        {
+                        cylinder(r=size, h=size*5/2,$fn=fn,center=true);
+                        cylinder(r=size-th, h=size*5/2+1,$fn=fn,center=true);
+                        }
+                cube(size*2,center=true);
+        *        translate([size*2,0,0]) scale([2,1,1]) 
+                        rotate([0,45,0]) cube(size*3,center=true);
+                translate([size/3,0,0]) scale([2,1,1]) rotate([90,0,0]) 
+                        cylinder(r=size*1,h=size*2,$fn=fn,center=true);
+                }
+        }"
+"Helical Gears: The openSCAD file accepts parameters for height, pitch diameter, shaft diameter, double helical, teeth (number of teeth, addendum, dedendum, tooth width, angle, orientation), shape (solid, star, circles), extrude in and out (diameter, height), rome (pitch diameter, gear height, number of teeth, addendum, dedendum, tooth width, rotation).
+","//GEAR PARAMETERS
+doubleHelical=1; //int: 0=no, 1=yes (will make the gear 2x taller)
+
+gearHeight=7; //gear depth
+
+pitchDiam=45; //pitch diameter
+
+shaftDiam=5; //shaft diameter
+
+//TEETH PARAMETERS
+teethNum=30; //number of teeth (int)
+
+addendum=2;
+
+dedendum=2;
+
+toothWidth=2;
+
+angle=-30; //positive=right, negative=left
+
+orientation=-1; //int: 1=left, -1=right
+
+//CENTER SHAPE PARAMETERS
+centerShape=3; //int: solid=1, star=2, circle=3
+
+starNum=6; //number of lines for star shape (int)
+starWidth=2; //width of star lines
+
+circleNum=7; //number of circles (int)
+circleDiam=7; //diameter of circles
+
+//CENTER CIRCLE PARAMETERS
+extrudeOut=1; //int: 0=no, 1=yes
+extrudeOutHeight=3;
+extrudeOutWidth=7; //in relationship to shaft
+
+extrudeIn=1; //int: 0=no, 1=yes
+extrudeInDiam=pitchDiam/2-dedendum*2;
+extrudeInHeight=3;
+
+//ROME (extrudeIn must be set to 0)
+rome=0; //int: 0=no, 1=yes
+romeDiam=pitchDiam/2; //pitch diameter for top gear
+romeHeight=gearHeight; //top gear height
+romeTeeth=teethNum*2/3;
+romeAdd=2; //top gear addendum
+romeDed=2; //top gear dedendum
+romeToothWidth=2; //teeth width for top gear
+romeAngle=5; //rotate top gear (angle)
+
+//----------------------
+
+gear();
+
+//----------------------
+
+//TOOTH
+module tooth(heightGear, diamPitch) {
+
+	toothHeight=addendum+dedendum*2;
+
+	union(){
+		translate([0,toothHeight/2,0]) rotateTooth(1);
+		if (doubleHelical==1){
+			translate([0,toothHeight/2,-heightGear+0.1]) rotateTooth(-1);
+		}
+	}
+
+	module rotateTooth(direction){
+		difference(){
+			rotate([0,direction*angle,0])
+			box(toothWidth,toothHeight,heightGear*1.5);
+
+			translate([0,0,heightGear*0.75+dedendum/2])
+			box(heightGear,toothHeight+0.5,dedendum+heightGear/2);
+
+			translate([0,0,-heightGear*0.75-dedendum/2])
+			box(heightGear,toothHeight+0.5,dedendum+heightGear/2);
+		}
+	}
+}
+
+
+
+//HELICAL
+module helical(numTeeth, diamPitch, heightGear) {
+	rootRad=diamPitch/2-dedendum;
+	difference(){
+	for (i = [1:numTeeth]) {
+		translate([sin(360*i/numTeeth)*(rootRad-dedendum), cos(360*i/numTeeth)*(rootRad-dedendum), 0 ]){
+			rotate([0,0,-360*i/numTeeth]) tooth(heightGear, diamPitch);
+		}
+	}
+	translate([0,0,-gearHeight/2-1]) cylinder(heightGear+2, diamPitch/2-dedendum, diamPitch/2-dedendum);
+	}
+}
+
+//SOLID
+module solid(heightGear, diamPitch) {
+	rootRad=diamPitch/2-dedendum;
+	translate([0,0,-(heightGear*doubleHelical)+0.1*doubleHelical])
+	cylinder(heightGear+(heightGear-0.1)*doubleHelical, rootRad, rootRad);
+}
+
+//STAR
+module star() {
+	starAngle=360/starNum;
+	rootRad=diamPitch/2-dedendum;
+	union(){
+		for (s=[1:starNum]){
+			translate([0,0,gearHeight/2-(gearHeight/2*doubleHelical)]){
+				rotate([0, 0, s*starAngle]) dislocateBox(starWidth, (pitchDiam/2-dedendum*2)/2, gearHeight+(gearHeight*doubleHelical));
+			}
+		}
+		translate ([0,0,-gearHeight*doubleHelical])
+		tube(gearHeight+(gearHeight*doubleHelical), pitchDiam/2-dedendum, starWidth);
+		translate ([0,0,-gearHeight*doubleHelical]){
+			tube(gearHeight+(gearHeight*doubleHelical), pitchDiam/4+dedendum, starWidth);
+			//cylinder(gearHeight+(gearHeight*doubleHelical), pitchDiam/4+dedendum, pitchDiam/4+dedendum);
+		}
+		translate([0,0,-gearHeight*doubleHelical])
+		cylinder(gearHeight+(gearHeight*doubleHelical), shaftDiam/2+starWidth, shaftDiam/2+starWidth);
+	}
+}
+
+//CIRCLE
+module circle() {
+	rootRad=pitchDiam/2-dedendum;
+	difference(){
+		solid(gearHeight-0.1*doubleHelical, pitchDiam);
+		for (c=[1:circleNum]){
+			translate([sin(360*c/circleNum)*(rootRad/2+shaftDiam/2), cos(360*c/circleNum)*(rootRad/2+shaftDiam/2), -gearHeight*doubleHelical]){
+				cylinder(gearHeight+gearHeight*doubleHelical, circleDiam/2, circleDiam/2);
+			}
+		}
+	}
+}
+
+//ROME
+module romeGear(){
+	translate([0,0,romeHeight/2+gearHeight]){
+		rotate([0,0,romeAngle]){
+			union(){
+				helical(romeTeeth, romeDiam, romeHeight);
+				translate ([0,0,-romeHeight/2]) solid(romeHeight, romeDiam);
+			}
+		}
+	}
+}
+
+//GEAR
+module gear(){
+
+	difference () {
+
+		union() {
+			translate([0,0,gearHeight/2]) helical(teethNum, pitchDiam, gearHeight);
+
+			if (centerShape==1) solid(gearHeight, pitchDiam);
+
+			if (centerShape==2) star();
+
+			if (centerShape==3) circle();
+
+			if (rome==1) romeGear();
+
+			//extrudeOut around shaft
+			if (extrudeOut==1) {
+translate([0,0,-gearHeight*doubleHelical+0.1*doubleHelical])	cylinder(gearHeight-(extrudeInHeight*extrudeIn)+extrudeOutHeight+romeHeight*rome+gearHeight*doubleHelical-0.1*doubleHelical, extrudeOutWidth/2+shaftDiam/2, extrudeOutWidth/2+shaftDiam/2);
+			}
+
+		}
+
+	//extrudeIn around shaft
+		if (extrudeIn==1) {
+			difference(){
+				translate([0,0,gearHeight-extrudeInHeight+0.1*doubleHelical]) cylinder(extrudeInHeight, extrudeInDiam, extrudeInDiam);
+				cylinder(gearHeight+extrudeOutHeight, (extrudeOutWidth+shaftDiam)/2*extrudeOut, (extrudeOutWidth+shaftDiam)/2*extrudeOut);
+			}
+		}
+
+	//shaft
+	translate([0,0,-gearHeight*doubleHelical]) cylinder(gearHeight+extrudeOutHeight+romeHeight+(gearHeight*doubleHelical), shaftDiam/2, shaftDiam/2);
+	}
+}
+
+//----------------------
+
+//SILLY WAY TO GET AROUND ROTATION AXIS
+
+module dislocateBox(xBox, yBox, zBox){
+	translate([0,yBox,0]){
+		difference(){
+			box(xBox, yBox*2, zBox);
+			translate([-xBox,0,0]) box(xBox, yBox*2, zBox);
+		}
+	}
+}
+
+//----------------------
+
+module box(xBox, yBox, zBox) {
+	scale ([xBox, yBox, zBox]) cube(1, true);
+}
+
+module cone(height, radius) {
+		cylinder(height, radius, 0);
+}
+
+module oval(xOval, yOval, zOval) {
+	scale ([xOval/100, yOval/100, 1]) cylinder(zOval, 50, 50);
+}
+
+module tube(height, radius, wall) {
+	difference(){
+		cylinder(height, radius, radius);
+		cylinder(height, radius-wall, radius-wall);
+	}
+}
+
+module hexagon(height, depth) {
+	boxWidth=height/1.75;
+		union(){
+			box(boxWidth, height, depth);
+			rotate([0,0,60]) box(boxWidth, height, depth);
+			rotate([0,0,-60]) box(boxWidth, height, depth);
+		}
+}
+
+module octagon(height, depth) {
+	intersection(){
+		box(height, height, depth);
+		rotate([0,0,45]) box(height, height, depth);
+	}
+}
+
+module dodecagon(height, depth) {
+	intersection(){
+		hexagon(height, depth);
+		rotate([0,0,90]) hexagon(height, depth);
+	}
+}
+
+module hexagram(height, depth) {
+	boxWidth=height/1.75;
+	intersection(){
+		box(height, boxWidth, depth);
+		rotate([0,0,60]) box(height, boxWidth, depth);
+	}
+	intersection(){
+		box(height, boxWidth, depth);
+		rotate([0,0,-60]) box(height, boxWidth, depth);
+	}
+	intersection(){
+		rotate([0,0,60]) box(height, boxWidth, depth);
+		rotate([0,0,-60]) box(height, boxWidth, depth);
+	}
+}
+
+module rightTriangle(adjacent, opposite, depth) {
+	difference(){
+		translate([-adjacent/2,opposite/2,0]) box(adjacent, opposite, depth);
+		translate([-adjacent,0,0]){
+			rotate([0,0,atan(opposite/adjacent)]) dislocateBox(adjacent*2, opposite, depth);
+		}
+	}
+}
+
+module equiTriangle(side, depth) {
+	difference(){
+		translate([-side/2,side/2,0]) box(side, side, depth);
+		rotate([0,0,30]) dislocateBox(side*2, side, depth);
+		translate([-side,0,0]){
+			rotate([0,0,60]) dislocateBox(side*2, side, depth);
+		}
+	}
+}
+
+module 12ptStar(height, depth) {
+	starNum=3;
+	starAngle=360/starNum;
+	for (s=[1:starNum]){
+		rotate([0, 0, s*starAngle]) box(height, height, depth);
+	}
+}"
+Nametag collar,"Name = ""First Name"";
+Name2 = """";
+Length = 40;
+Height = 2;
+Width = 20;
+Diameter = 15;
+Diameter_Hole = 5;
+Corner_Radius = 4;
+Text_Height = 1;
+Letter_Size = 4;
+Emboss_Engrave = ""Emboss""; // [Emboss, Engrave]
+
+
+if (Emboss_Engrave == ""Emboss"") {
+	if (Name2 == """") {
+		linear_extrude(height = Height+Text_Height)
+		translate([8, 0, 0])
+			text(Name, size = Letter_Size, valign = ""center"", $fn = 100);
+	} else {
+		linear_extrude(height = Height+Text_Height)
+		translate([8, 3, 0])
+		text(Name, size = Letter_Size, valign = ""center"", $fn = 100);    
+			
+		linear_extrude(height = Height+Text_Height)
+		translate([8, -3, 0])
+		text(Name2, size = Letter_Size, valign = ""center"", $fn = 100);  
+		}
+}
+
+roundedcube(Length,Width,Height,Corner_Radius);
+
+module roundedcube(Length,Width,Height,Corner_Radius) {    
+	difference() {
+		hull(){
+			translate([Corner_Radius,Corner_Radius,0])
+				cylinder(h=Height,r=Corner_Radius, $fn=100);
+			translate([Length-Corner_Radius,Corner_Radius,0])
+				cylinder(h=Height,r=Corner_Radius, $fn=100);
+			translate([Corner_Radius,Height-Corner_Radius,0])
+				cylinder(h=Height,r=Corner_Radius, $fn=100);
+			translate([Length-Corner_Radius,Height-Corner_Radius,0])
+				cylinder(h=Height,r=Corner_Radius, $fn=100);
+		}
+		//
+		if (Emboss_Engrave == ""Engrave"") {
+			if (Name2 == """") {
+				linear_extrude(height = Height+Text_Height)
+				translate([8, 0, 5])
+				text(Name, size = Letter_Size, valign = ""center"", $fn = 100);
+			} else { // Emboss
+				linear_extrude(height = Height+Text_Height)
+				translate([8, 3, 0])
+				text(Name, size = Letter_Size, valign = ""center"", $fn = 100);    
+				
+				linear_extrude(height = Height+Text_Height)
+				translate([8, -3, 0])
+				text(Name2, size = Letter_Size, valign = ""center"", $fn = 100);  
+			}
+		}
+		//
+	translate([3,0,0])
+		cylinder(Diameter_Hole, Height, $fn=100);
+	}
+}"
+a Bike that can be given as a token for a gift,"$fn=100;
+frameheight=40;
+tubediameter=5;
+
+// Elements
+module wheel(diameter=26, tyrediameter=2.6, spokes=18) {
+    // hub
+    difference(){
+        union(){// spokes
+            for (angle = [0 : 360/spokes : 360])
+                rotate([0,0,angle]) // rotate the spokes
+                translate([0,diameter/2,0]) // translate from the center outwards
+                cube([1, diameter, 1], center=true); // make the spokes
+            // hub
+            circle(r = diameter/5);
+        }
+        // hub hole
+        circle(r =diameter/5-1);
+        }        
+    // tire
+    rotate_extrude()
+    translate([diameter, 0, 0])
+    circle(d=tyrediameter);
+    }
+
+module frame(height=frameheight, diameter=tubediameter) {
+    // seat tube
+    rotate([10,90,-90]) cylinder(h=height, d=diameter, center=true);
+    // top tube
+    translate([height/2,-height/2,0]) rotate([0,90,0]) cylinder(h=height+height/10, d=diameter, center=true);    
+    // down tube
+    translate([height/2,0,0]) rotate([45,90,0]) cylinder(h=height++height/3,d=diameter, center=true);        
+    // seat stays
+    translate([-height/2,0,0]) rotate([45,90,0]) cylinder(h=height+height/3,d=diameter, center=true);
+    // chain stay
+    translate([-height/2,height/2-diameter,0]) rotate([0,90,0]) cylinder(h=height+height/10,d=diameter, center=true);
+    // bottom bracket
+    translate([diameter,height/2-diameter,0]) cylinder(r = 5, h=10, center=true);    
+    }
+
+module fork(height=frameheight, diameter=5){
+    rotate([-70,90,0]) cylinder(h=height,d=diameter, center=true);
+}    
+    
+module handlebars(width=40, diameter=tubediameter){
+    cylinder(h=width, d=diameter, center=true);
+    rotate([45,90,0]) translate([0,-2,-3])  cylinder(h=diameter*2,d=diameter, center=true);
+}
+
+module saddle(){
+    scale([3, 1, 2]) sphere(d=10);
+    rotate([-90,0,-15]) cylinder(h=12, d=tubediameter*0.8);    
+}
+    
+// Build
+frame();
+translate([frameheight+tubediameter,0,0]) fork();
+translate([frameheight+tubediameter,-frameheight/2-tubediameter,0]) handlebars();
+translate([-tubediameter,-frameheight/2-10,0]) saddle();
+// wheels
+translate([0,frameheight/2-tubediameter/2,0]) { // shift both wheels down a bit
+    translate([-frameheight,0,0]) wheel();
+    translate([frameheight+3*tubediameter,0,0]) wheel();
+}"
+Photo Holder,"// Holder to put a photo on the desk
+$fn=100;
+
+difference() {
+    dome();
+    # rotate([0,12,0]) translate([90, 0, 7]) #slit();
+}
+
+module slit (slitwidth=1.5) {
+    difference(){
+        cylinder(h=9.9,d=200+slitwidth, center=true);
+        cylinder(h=10,d=200, center=true);        
+    }
+}
+
+module dome () {
+    difference() {
+        difference() {
+            scale([0.618,1,0.618]) sphere(d=50);            
+            translate([0,0,-9]) scale([0.618,1,0.618]) sphere(d=50);
+        }
+        #translate([0,0,-10]) cube([50,50,20], center=true);
+    }
+}"
+Cross for Jesus and a base with quote from the Bible,"// Parametric Cross
+
+/* [1 General Parameters] */
+// Error (mm/100)
+toleranceAmt = 5; // [1:1:100]
+// Object
+object = 3;  // [0:Cross,1:Base,2:Both,3:Display]
+// Resolution
+resolution = 75; // [15:15:150]
+
+/* [2 Cross Parameters] */
+// Height of Cross (mm)
+crossHeight=130; // [15:5:150]
+// Width Percentage of Height
+crossWidthPct = 60; // [40:5:75]
+// Depth Percentage of Width
+crossDepthPct = 17; // [10:5:25]
+// Display Color
+crossColor = ""SaddleBrown"";
+// Cross distance(mm) from wall of base. 
+crossOffset = 8; // [0:1:50]
+
+/* [3 Base Parameters] */
+// Display Color
+baseColor = ""DarkKhaki"";
+// Width Percentage of Cross Width
+baseWidthPct = 180; // [50:10:250]
+baseTopAngle = 5;
+
+/* [4 Text Parameters] */
+// Space from top to first line
+lineOffsetTop = 30; // [5:1:70]
+// Space between lines
+lineOffset = 9; // [0:1:40]
+// Display Color
+textColor = ""MediumSlateBlue"";
+textFont = ""Arial Rounded MT Bold"";
+textSize = 5; // [3:12]
+
+/* [5 Message Text] */
+message0 = ""For God so loved the world that"";
+message1 = ""He gave His only begotten Son"";
+message2 = ""that whosoever believeth in Him should"";
+message3 = ""not perish, but have everlasting life."";
+message4 = """";
+message5 = """";
+message6 = """";
+message7 = """";
+message8 = """";
+message9 = """";
+
+message = [message0,message1,message2,message3,message4,message5,message6,message7,message8,message9];
+
+// Calculations
+$fn=resolution;
+tolerance = toleranceAmt / 100; // Tolerance unit:  mm/100
+crossWidth = crossHeight * (crossWidthPct / 100);
+crossDepth = crossWidth * (crossDepthPct / 100);
+horizontalHeight = crossDepth;
+verticalOffset = (crossHeight / 4) - (horizontalHeight / 2);
+baseWidth = crossWidth * (baseWidthPct / 100);
+baseDepth = crossDepth * 5;
+baseCutout = crossDepth + tolerance;
+baseHeight = crossDepth;
+
+// Determine which object is requested and call the appropriate module.
+if(object)
+{
+    if(object==1) // 1 = Base
+        base();
+    else
+        if(object==2) // 2 = Both
+            translate([0,-crossHeight/2,0])
+            {
+                rotate([-90,0,0])
+                {
+                    display(); // 3 (False) = Display model.
+                } // End rotate()
+            } // End translate()
+        else
+            translate([0,baseDepth/2,0])
+                display();
+}
+else
+    cross(); // 0 (False) = Cross
+
+/* display() - Display the cross in the base.
+- Call the module to draw the cross.
+- Rotate the cross to an upright orientation.
+- Move the cross into position.
+- Call the module to draw the base.
+*/
+module display()
+{
+    base();
+    translate([0,-((crossDepth/2)+crossOffset),crossHeight/2+1])
+        rotate([90,0,0])
+            cross();
+} // End display()
+
+/* cross() - Create the cross.
+- Create the vertical spar of the cross.
+- Create the horizontal spar of the cross.
+- Move the horizontal spar into place.
+- Color the cross for display visibility.
+*/
+module cross()
+{
+    color(crossColor)
+    {
+        cube([crossDepth,crossHeight,crossDepth], center=true);
+        translate([0,verticalOffset,0])
+            cube([crossWidth,crossDepth,horizontalHeight], center=true);
+    } // End color();
+} // End cross()
+
+/* base() - Create the base.
+- Create the bottom cube of the base.  Using a 3D object instead of a square to allow for the hull() function.
+- Create the top cube and add it to a sphere to get rounded corners.
+- Rotate the top cube to create a pitched top to the base.
+- Move the top cube into place.
+- Merge the top and bottom cubes to form the shape of the base.
+- Center the base on the X/Y axis.
+- Cut out the hole (cube) for the cross from the base.
+- Move the cutout into place on the base.
+- Call the module to add the message to the top of the base.
+- Color the base for display visibility.
+*/
+module base()
+{
+    color(baseColor)
+    difference()
+    {
+        translate([-baseWidth/2,-baseDepth,0])
+        {
+            hull()
+            {
+                cube([baseWidth,baseDepth,.1]);
+                translate([2,2,baseHeight-(4+(baseDepth*tan(baseTopAngle)))])
+                    rotate([baseTopAngle,0,0])
+                        minkowski()
+                        {                    
+                            cube([baseWidth-4,(baseDepth/cos(baseTopAngle))-4,.1]);
+                            sphere(2);
+                        } // End minkowski()
+            } // End hull()
+        } // End translate()
+        if(object!=2)
+            translate([0,-((baseCutout/2)+crossOffset),baseHeight+1])
+                cube([baseCutout,baseCutout,baseHeight*2], center=true);
+    } // End difference()
+    message();
+} // End base()
+
+/* message() - Create the message text for the base.
+- Loop through the message array spacing the text as it is printed.
+- Rotate the text to match the pitch of the top of the base.
+- Move the text so it sits on top of the base.
+- Color the text for display readability.
+*/
+module message()
+{
+    color(textColor)
+    {
+        translate([0,0,(baseHeight+3.5)-((baseDepth*tan(baseTopAngle)))])
+            rotate([baseTopAngle,0,0])
+            {
+                for(i=[0:1:len(message)-1])
+                    translate([0,-((lineOffset*i)+lineOffsetTop),0])
+                        linear_extrude(.5)
+                            text(message[i], size=textSize, font=textFont, valign=""top"", halign=""center"", center=true);
+            } // End rotate()
+    } // End color()
+}// End message()"
+Symbol of Batman,"
+color([0.15,0.15,0.15])
+linear_extrude(height = 2, center = true, convexity = 10, twist = 0)
+difference(){
+
+translate([0,20,0])
+polygon(points=[[-9.8, -14], [9.8,-14],[3.8, 14],[-3.8, 14] ],paths=[[0,1,2,3]], convexity=10);
+
+translate([0,30,0])
+polygon(points=[[-2, -8], [2,-8],[12, 8],[-12, 8] ],paths=[[0,1,2,3]], convexity=10);
+}
+
+color([0.15,0.15,0.15])
+linear_extrude(height = 2, center = true, convexity = 10, twist = 0)
+difference(){
+
+projection(cut=true) 
+rotate([0,50,0])
+cylinder(r=30, h=200, center=true);
+
+translate([-8,-23,0]) 
+rotate([0,0,-60])
+projection(cut=true)
+rotate([0,62,0])
+cylinder(r=7, h=200, center=true);
+
+translate([8,-23,0]) 
+rotate([0,0,60])
+projection(cut=true)
+rotate([0,62,0])
+cylinder(r=7, h=200, center=true);
+
+translate([-18,-24,0]) 
+rotate([0,0,-50])
+projection(cut=true)
+rotate([0,67,0])
+cylinder(r=7, h=200, center=true);
+
+translate([18,-24,0]) 
+rotate([0,0,50])
+projection(cut=true)
+rotate([0,67,0])
+cylinder(r=7, h=200, center=true);
+
+union(){
+
+translate([-7,25,0]) 
+rotate([0,0,30])
+projection(cut=true)
+rotate([0,45,0])
+cylinder(r=13, h=200, center=true);
+
+translate([7,25,0]) 
+rotate([0,0,-30])
+projection(cut=true)
+rotate([0,45,0])
+cylinder(r=13, h=200, center=true);
+}
+
+}"
+"Tic Tac Toe travel game with 5 circles and 5 X crosses in a travel game cube format. It features a drawer that slides into the board, which is also a holder. The board itself has 9 squares to put the pieces","// http://www.thingiverse.com/thing:8922
+//=======================================================================================
+module radius(radius,length)
+{
+    linear_extrude(height = length, center = false, convexity = 4, twist = 0)
+    difference()
+    {
+        translate([-0.1,-0.1]) square([radius+0.1,radius+0.1]);
+        translate([radius,radius]) circle(r=radius, $fn=60);
+    }
+}
+//=======================================================================================
+module radius2d(radius)
+{
+    difference()
+    {
+        translate([-0.1,-0.1]) square([radius+0.1,radius+0.1]);
+        translate([radius,radius]) circle(r=radius, $fn=60);
+    }
+}
+//======================================================================================
+module outside_radius(radius)
+{
+    intersection()
+    {
+        rotate_extrude(convexity = 10,$fn=60)
+        difference()
+        {
+            square([radius,radius]);
+            translate([radius,radius]) circle(r=radius, $fn=60);
+        }
+        cube([radius,radius,radius]);
+    }
+}
+//======================================================================================
+//100x100 build platform for debug
+translate([-50,-50,-1.01]) %cube([100,100,1]);
+//======================================================================================
+module wall_profile_2d()
+{
+    //one wall
+    translate([-55/2,-20+3.5]) square([2,20-3]);
+    translate([-55/2+2+2,-20+3+2+0.125]) circle(r=1,$fn=30);
+    translate([-55/2+1,-20+2+2+0.125]) square([3,2]);
+    translate([-55/2+2,-20+2+2+2+0.125]) radius2d(1);
+    translate([-55/2+2+2,-20+3-2]) circle(r=1-0.125,$fn=30);
+    translate([-55/2+1+2-0.125,-20+2-2]) square([2,1]);
+    translate([-55/2+2+2+1-3,0]) rotate(-90) radius2d(3);
+    translate([-55/2+0.5,2]) polygon(points=[[-0.5,0],[-0.5,2],[0.5,2],[2.5,0]],paths=[[0,1,2,3]]);
+    translate([-9,2]) polygon(points=[[-2.5,0],[-0.5,2],[+0.5,2],[2.5,0]],paths=[[0,1,2,3]]);
+
+    difference()
+    {
+        translate([-55/2,-20]) square([4,4.5]);
+        translate([-55/2+2+1,-20+3]) circle(r=1.125,$fn=30);
+        translate([-55/2+1+2,-20+2-0.125]) square([3,2+0.125+0.125]);
+    }
+}
+//======================================================================================
+module lid()
+{
+    difference()
+    {
+        union()
+        {
+            difference()
+            {
+                translate([0,-24-2,53]) scale([1,1,1.5]) sphere(r=16,$fn=180);
+                translate([-18,-20-13-9,55]) cube([36,36,23]);
+                translate([-18,-20-13-4-4-5,55-35]) cube([36,26,36]);
+            }
+
+            //Lid to slide in
+            translate([0,0,3.5])
+            {
+                linear_extrude(height = 51.5, center = false, convexity = 4, twist = 0)
+                {
+                    translate([-(55-3-3)/2,-20+3-(2-0.125-0.125)/2]) square([55-3-3,2-0.125-0.125]);
+                    translate([-55/2+2+1,-20+3]) circle(r=1-0.125,$fn=30);
+                    translate([+55/2-2-1,-20+3]) circle(r=1-0.125,$fn=30);
+                }
+                //bottom roundiness
+                translate([-(55-6)/2,-20+3,+0])
+                {
+                    rotate(90,[0,1,0])
+                    cylinder(r=1-0.125,h=55-6,$fn=30);
+                    sphere(r=1-0.125,$fn=30);
+                }
+                translate([+(55-6)/2,-20+3,0])
+                sphere(r=1-0.125,$fn=30);
+            }
+            //Top
+            difference()
+            {
+                translate([-(55-4-0.125-0.125)/2,-20+3,53])
+                cube([55-4-0.125-0.125,20-3-0.25,2]);
+                translate([-(55-4-0.125-0.125)/2,-0.125-0.125,53-0.1])
+                rotate(-90,[0,0,1])
+                radius(radius=3-0.125,length=2.2);
+                mirror([1,0,0])
+                translate([-(55-4-0.125-0.125)/2,-0.125-0.125,53-0.1])
+                rotate(-90,[0,0,1])
+                radius(radius=3-0.125,length=2.2);
+                translate([0,0,53+2])  rotate(45,[1,0,0])
+                cube([3,2,2],center=true);
+            }
+            translate([-(55-10-0.125-0.125)/2,-20,5+0.125+0.5])
+            {
+                difference()
+                {
+                    cube([55-10-0.125-0.125,3,50-0.125-0.5]);
+                    //Remove logo
+                    translate([+(55-10-0.125-0.125)/2,0.5,14])
+                    rotate(90,[1,0,0])
+                    scale([0.23,0.23,10])
+                    import_stl(""cf_logo_cs.not_stl"", convexity = 5);
+                }
+
+                translate([0,2+0.125,0])
+                rotate(-90,[1,0,0])
+                rotate(90,[0,1,0])
+                radius(radius=1-0.125,length=55-10-0.125-0.125);
+
+                translate([0,2+0.125,0])
+                rotate(180,[0,1,0])	
+                rotate(90,[1,0,0])	
+                outside_radius(1);
+
+                translate([55-10-0.125-0.125,2+0.125,0])
+                rotate(90,[0,1,0])	
+                rotate(90,[1,0,0])	
+                outside_radius(1);
+                
+                translate([0,4-0.125,48-0.125-0.5])
+                rotate(0,[1,0,0])
+                rotate(90,[0,1,0])
+                radius(radius=3,length=55-10-0.125-0.125);
+                
+                translate([0,2+0.125,0])
+                rotate(180,[0,0,1])
+                radius(radius=1-0.125,length=50-0.125-0.5);
+                translate([55-10-0.125-0.125,2+0.125,0])
+                rotate(-90,[0,0,1])
+                radius(radius=1-0.125,length=50-0.125-0.5);
+            }
+
+            //drawer walls
+            translate([-22.25,-16.25,6]) color([1,0,0,1]) cube([2,15.5,47]);
+            translate([+22.25-2,-16.25,6]) color([1,0,0,1]) cube([2,15.5,47]);
+
+            difference()
+            {
+                translate([-21.75,-17.6,21])
+                color([0,1,0,1]) rotate(-45,[1,0,0]) cube([43.5,23,2]);
+                
+                translate([-22.25,-4,4])
+                cube([44.5,4,2]);
+                translate([-22.25,-0.75,4])
+                cube([44.5,2,4]);
+            }
+        }
+
+
+        difference()
+        {
+            translate([0,-20-6,53]) scale([1,1,1.5]) sphere(r=14,$fn=120);
+            translate([-18,-20-18,53]) cube([36,36,13]);
+        }
+    }
+    
+    //Add a little rib in the thumb slot. Because we can.
+    translate([0,-20+1.25,53])
+    rotate(90,[0,1,0])
+    cylinder(r=1.25,h=30,$fn=30,center=true);
+}
+//======================================================================================
+module case()
+{
+    translate([0,0,53+2])
+    {
+        difference()
+        {
+            rotate(45,[1,0,0])
+              cube([2.5,2,2],center=true);
+            translate([0,0,1])	  cube([3,3,2],center=true);
+        }
+    }
+
+
+    difference()
+    {	
+        linear_extrude(height = 55, center = false, convexity = 4, twist = 0)
+        {
+            //2-d profile to exrude upwards as a start
+            translate([-55/2,0]) square([55,2]);
+            //left wall
+            wall_profile_2d();
+            //right wall
+            mirror() wall_profile_2d();
+        }
+        translate([-(55-4)/2,-20+3,53-0.125])
+        cube([55-4,4,2+0.125+0.1]);
+
+        
+    }
+    translate([55/2,0,55/2])
+
+    //Bottom wall
+    rotate(-90,[0,1,0]) linear_extrude(height = 55, center = false, convexity = 4, twist = 0)
+    {	
+        wall_profile_2d();
+        //Upper parts of grid
+        mirror()
+        {
+            translate([-55/2+0.5,2]) polygon(points=[[-0.5,0],[-0.5,2],[0.5,2],[2.5,0]],paths=[[0,1,2,3]]);
+            translate([-9,2]) polygon(points=[[-2.5,0],[-0.5,2],[+0.5,2],[2.5,0]],paths=[[0,1,2,3]]);
+        }
+    }
+
+}
+
+BaseThickness=0;
+FeatureHeight=4;
+FeatureThickness=2;
+//======================================================================================
+BarZCenter=BaseThickness+FeatureHeight/2;
+//======================================================================================
+module X_game_piece()
+{
+    translate([0,-9,BarZCenter]) rotate(-45) cube([FeatureThickness,12,FeatureHeight],center=true);
+    translate([0,-9,BarZCenter]) rotate(+45) cube([FeatureThickness,12,FeatureHeight],center=true);
+}
+//======================================================================================
+module O_game_piece()
+{
+    difference()
+    {
+        translate([0,3,BarZCenter]) cylinder(r=6,h=FeatureHeight,center=true,$fn=180);
+        translate([0,3,BarZCenter]) cylinder(r=6-FeatureThickness,h=FeatureHeight+0.1,center=true,$fn=180);
+    }
+}
+//======================================================================================
+//cut-away visualization
+if(false)
+difference()
+{
+    union()
+    {
+        color([0,0,1,0.75])
+        case();
+        color([1,0,1,0.75])
+        lid();
+    }
+    translate([0,-50,-55])cube(100) ;
+}
+//======================================================================================
+//visualization
+if(false)
+{
+    color([0,0,1,0.75])
+    case();
+    color([1,0,1,0.75])
+    translate([0,0,30])
+    lid();
+    
+}
+//======================================================================================
+//Build
+if(true)
+{
+    translate([0,-6,0]) case();
+    translate([0,2,55]) rotate(180,[1,0,0]) lid();
+    for(X = [-2:2] )
+    {
+        translate([X*14,-26,0]) X_game_piece();
+        translate([X*14,+28,0]) O_game_piece();
+    }
+}
+//======================================================================================
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+"
+Box and Lid,"include <boxes.scad>
+//myBox();
+
+wiggle_room = 1;
+
+//my_fn = 20;
+my_fn=40;
+//my_fn = 50;
+//my_fn = 100;
+
+//width_outer = 50;
+//length_outer = 50;
+//height_outer = 50;
+
+width_outer = 40;
+length_outer = 40;
+height_outer = 40;
+
+//width_outer = 95;
+//length_outer = 95;
+//height_outer = 95;
+
+
+wall_thickness = (1/10) * width_outer;
+
+width_inner = width_outer - (2 * wall_thickness);
+length_inner = length_outer - (2 * wall_thickness);
+height_inner = height_outer - (2 * wall_thickness);
+
+lid_height = height_outer / 4;
+lid_height_i = lid_height - wall_thickness;
+lid_width_i = width_outer - wall_thickness;
+
+lid_length_i = length_outer - wall_thickness;
+
+
+module myBox() {
+	translate(v=[0,0,height_outer/2]) difference() {
+		cube([width_outer,length_outer,height_outer],center=true);
+		cube([width_inner,length_inner,height_inner],center=true);
+	}
+}
+
+module myBoxRounded() {
+	translate(v=[0,0,height_outer/2]) difference() {
+		roundedBox([width_outer,length_outer,height_outer],wall_thickness,center=true,$fn=my_fn);
+		cube([width_inner,length_inner,height_inner],center=true);
+	}
+}
+
+
+module boxNoLid() {
+	difference() {
+		myBox();
+		myLidAtProperHeightWithWiggle();
+	}
+}
+
+module boxNoLidRounded() {
+	difference() {
+		myBoxRounded();
+		myLidAtProperHeightWithWiggle();
+	}
+
+}
+
+module myLidAtProperHeight() {
+	translate(v=[0,0,height_outer-lid_height]) myLidAtZero();
+}
+
+module myLidRoundedAtProperHeight() {
+	translate(v=[0,0,height_outer-lid_height]) myRoundedLidAtZero();
+}
+
+module myLidAtProperHeightWithWiggle() {
+	translate(v=[0,0,height_outer-lid_height]) myLidAtZeroWithWiggle();
+}
+
+module myRoundedLidAtZero() {
+	difference() {
+		difference() {
+			roundedBox([width_outer,length_outer,lid_height*2],wall_thickness,false,$fn=my_fn,center=true);
+			translate(v=[0,0,-lid_height]) cube([width_outer+1,length_outer+1,lid_height*2],center=true);
+		}
+		translate(v=[0,0,lid_height_i/2]) cube([lid_width_i,lid_length_i,lid_height_i],center=true);
+	}
+}
+
+module myLidAtZero() {
+	difference() {
+		translate(v=[0,0,lid_height/2]) cube([width_outer,length_outer,lid_height],center=true);
+		translate(v=[0,0,lid_height_i/2]) cube([lid_width_i,lid_length_i,lid_height_i],center=true);
+	}
+}
+
+module myLidAtZeroWithWiggle() {
+	difference() {
+		translate(v=[0,0,lid_height/2]) cube([width_outer,length_outer,lid_height],center=true);
+		translate(v=[0,0,lid_height_i/2]) cube([lid_width_i - wiggle_room,lid_length_i  - wiggle_room,lid_height_i],center=true);
+	}
+}
+
+module boxPrintable() {
+	translate(v=[(width_outer/2)+5,0,0]) boxNoLid();
+	translate(v=[(width_outer/-2)-5,0,lid_height]) rotate([180,0,0]) myLidAtZero();
+}
+
+module boxOnlyRoundedPrintable() {
+	boxNoLidRounded();
+}
+
+module boxOnlyPrintable() {
+	boxNoLid();
+}
+
+module lidOnlyPrintable() {
+	translate(v=[0,0,lid_height]) rotate([180,0,0]) myLidAtZero();
+}
+
+module lidOnlyRoundedPrintable() {
+	translate(v=[0,0,lid_height]) rotate([180,0,0]) myRoundedLidAtZero();
+}
+
+module boxRoundedPrintable() {
+	translate(v=[(width_outer/2)+5,0,0]) boxNoLidRounded();
+	translate(v=[(width_outer/-2)-5,0,lid_height]) rotate([180,0,0]) myRoundedLidAtZero();
+}
+
+// Square box
+//boxPrintable();
+//boxOnlyPrintable();
+//lidOnlyPrintable();
+
+// Round box
+boxRoundedPrintable();
+//boxOnlyRoundedPrintable();
+//lidOnlyRoundedPrintable();"
+Wall Mounted Ping Pong and table tennis ball holder,"ball_dia = 1.5;
+ball_tol = 0.125;
+wall_thickness = 0.0625;
+back_thickness = 0.125;
+height = 6;
+
+bend_radius = ball_dia*3/4;
+shoot_len = ball_dia*0.6;
+
+slit_size = 0.625;
+eject_hole = 0.375;
+
+screw_clearance_hole = 0.150;
+screw_head = .300;
+
+module tangent_base( r, b, h ) {
+  rotate( [ 0, 90, 0 ] )
+  linear_extrude( height = h )
+    polygon( [ [ -b - r/2, -sqrt(3)/2*r ],
+               [ -b - r/2,  sqrt(3)/2*r ],
+               [ 0,        sqrt(3)/3*( r - b ) ],
+               [ 0,       -sqrt(3)/3*( r - b ) ] ] );
+}
+
+module toroid( bend_radius, dia ) {
+  intersection () { 
+      rotate ( [ 90, 0, 0 ] ) rotate_extrude( convexity = 10, $fn = 72 ) translate( [ bend_radius, 0, 0 ] ) circle( r = dia/2, $fn = 36 );
+      translate( [ -bend_radius - dia/2 - 0.1, -dia/2 - 0.1, -bend_radius - dia/2 - 0.1 ] ) cube( [ bend_radius + dia/2 + 0.1, dia + 0.2, bend_radius + dia/2 + 0.1 ] );
+      rotate ( [ 0, -30, 0 ] ) translate( [ -bend_radius - dia/2 - 0.1, -dia/2 - 0.1, -bend_radius - dia/2 - 0.1 ] ) cube( [ bend_radius + dia/2 + 0.1, dia + 0.2, bend_radius + dia/2 + 0.1 ] );
+  }
+}
+
+function tt_mt( m, phi ) = m / cos( phi );
+function tt_xmt( R, r, mt ) = ( mt * R + sqrt( ( mt*mt + 1 ) * r*r - R*R ) ) / ( mt*mt + 1 );
+function tt_point( R, r, h, m, phi ) = tt_xmt( R, r, tt_mt( m, phi ) ) * [ 1, m, -m*tan( phi ) ] + [ 0, 0, h ];
+
+function tt_critical_ang( k, m ) = m < sqrt(k*k-1) ? acos( m/sqrt(k*k-1) ) : 0;
+function tt_invslope2( k, m, phi, cos_sqr_phi ) = sqrt(m*m+1)*(k*sqrt(m*m-(k*k-1)*cos_sqr_phi)+m*(k*k*cos_sqr_phi-m*m-1))*tan(phi)/(m*m*(k*k*cos_sqr_phi-m*m-2)+k*k-1);
+function tt_invslope( k, m, phi ) = tt_invslope2( k, m, phi, cos( phi )*cos( phi ) );
+function tt_invslopev( k, m, phi ) = [ phi, tt_invslope( k, m, phi ) ];
+
+function tt_interp( a, b, des ) = a[1]==b[1]?a[0]:(des-a[1])/(b[1]-a[1])*(b[0]-a[0])+a[0];
+
+function tt_find_phi_interp( count, k, m, des, ps, ps_old ) =
+  abs(ps[0]-ps_old[0]) < 1e-14 * abs(ps[0]) || count >= 30 ?
+    tt_interp( ps, ps_old, des ) :
+    //[ count, ps, ps_old ] :
+    tt_find_phi_interp( count + 1, k, m, des, tt_invslopev( k, m, tt_interp( ps, ps_old, des ) ), ps );
+
+function tt_find_phi_bisect_helper( count, k, m, des, ps1, ps2, ps_new ) =
+  ps_new[1] > des ?
+    tt_find_phi_bisect_loop( count + 1, k, m, des, ps1, ps_new ) :
+    tt_find_phi_bisect_loop( count + 1, k, m, des, ps_new, ps2 );
+
+function tt_find_phi_bisect_loop( count, k, m, des, ps1, ps2 ) =
+  count >= 7 ?
+    tt_find_phi_interp( 0, k, m, des, ps1, ps2 ) :
+    //[ ps1, ps2 ] :
+    tt_find_phi_bisect_helper( count, k, m, des, ps1, ps2, tt_invslopev( k, m, (ps1[0]+ps2[0])/2 ) );
+
+function tt_find_phi_bisect( k, m, des, phi1, phi2 ) =
+  tt_find_phi_bisect_loop( 0, k, m, des, tt_invslopev( k, m, phi1 ), tt_invslopev( k, m, phi2 ) );
+
+function tt_find_phi( R, r, m, des_slope ) = m==0?90:tt_find_phi_bisect( R/r, m, des_slope, tt_critical_ang( R/r, m )*(1.00000001)+1e-10, 0.9999999999 * 90 );
+
+function tt_tangent_point( R, r, h, m, des_slope ) = m==0?[r/des_slope/sqrt(1/des_slope/des_slope+1),0,h-R-r/sqrt(1/des_slope/des_slope+1)]:tt_point( R, r, h, m, tt_find_phi( R, r, m, des_slope ) );
+
+function tt_add_bottom_point( tangent_point, m, des_slope ) = [ tangent_point, [tangent_point[0],tangent_point[1],0]-tangent_point[2]*des_slope/sqrt(1+m*m)*[1,m,0] ];
+
+function tt_points( R, r, h, m, des_slope ) = tt_add_bottom_point( tt_tangent_point( R, r, h, m, des_slope ), m, des_slope );
+
+echo( tt_invslope( 3/2, tan(50), 0.999999999 * 90 ), tt_point( 3, 2, tan(50), 30 ) );
+
+echo( tt_critical_ang( 3/2, tan(10) ), tt_find_phi( 3, 2, tan(55), 1/sqrt(3) ) );
+
+echo( tt_points( 3, 2, 5, tan(50), 1/sqrt(3) ) );
+
+function tt_mp( p ) = [ -p[0], p[1], p[2] ]; // mirror point
+
+module tt_slice_from_points( R, r, h, pair1, pair2 ) {
+   polyhedron( points = [ pair1[0], pair1[1], pair2[0], pair2[1],
+                          tt_mp( pair1[0] ), tt_mp( pair1[1] ), tt_mp( pair2[0] ), tt_mp( pair2[1] ),
+                          [ 0, 2*pair1[1][1]-pair2[1][1], pair1[0][2]/2 ] ],
+               triangles = [ [ 0, 3, 1 ], [ 0, 2, 3 ], [ 1, 3, 7 ], [ 1, 7, 5 ], [ 4, 7, 6 ], [ 4, 5, 7 ], [ 0, 4, 6 ], [ 0, 6, 2 ], [ 6, 3, 2 ], [ 6, 7, 3 ], [ 4, 0, 8 ], [ 0, 1, 8 ], [ 1, 5, 8 ], [ 4, 8, 5 ] ],
+               convexity = 3 );
+}
+
+module tt_slice( R, r, h, m1, m2, des_slope ) {
+  tt_slice_from_points( R, r, h, tt_points( R, r, h, m1, des_slope ), tt_points( R, r, h, m2, des_slope ) );
+}
+
+module tt_base( R, r, h, num ) {
+  for ( ang = [ 0 : num - 1 ] ) {
+    tt_slice( R, r, h, tan( ang * 90 / num ), tan( ( ang + 1 ) * 90 / num ), 1/sqrt(3) );
+  }
+}
+
+module slits( angle ) {
+  translate ( [ slit_size, 0, ball_dia/2 + ball_tol/2 + back_thickness ] ) rotate( [ angle, 0, 0 ] ) translate( [ 0, -slit_size/2, 0 ] ) cube( [ height/2 - slit_size * 3/2, slit_size, ball_dia ] );
+  translate ( [ height/2 + slit_size/2, 0, ball_dia/2 + ball_tol/2 + back_thickness ] ) rotate( [ angle, 0, 0 ] ) translate( [ 0, -slit_size/2, 0 ] ) cube( [ height/2 - slit_size * 3/2, slit_size, ball_dia ] );
+}
+
+module screw() {
+  translate( [ 0, 0, -ball_dia ] ) cylinder( r = screw_clearance_hole/2, h = ball_dia, $fn = 18 );
+  translate( [ 0, 0, 0.001 - ( screw_head/2-screw_clearance_hole/2 ) ] ) cylinder( r2 = screw_head/2, r1 = screw_clearance_hole/2, h = screw_head/2-screw_clearance_hole/2, $fn = 18 );
+  cylinder( r = screw_head/2, h = 4 * ball_dia + shoot_len, $fn = 18 );
+}
+
+rotate( [ 0, 0, 45 ] )
+scale ( 25.4 ) {
+  difference () {
+    union ()  {
+      translate( [ -0.001, 0, ball_dia/2 + ball_tol/2 + back_thickness ] ) rotate( [ 0, 90, 0 ] ) cylinder( r = ball_dia/2 + ball_tol/2 + wall_thickness, h = height + 0.001, $fn = 36 );
+      tangent_base( ball_dia/2 + ball_tol/2 + wall_thickness, back_thickness - wall_thickness, height );
+      translate( [ 0, 0, bend_radius + ball_dia/2 + ball_tol/2 + back_thickness ] ) toroid( bend_radius, ball_dia + ball_tol + 2 * wall_thickness );
+      translate ( [ -sqrt(3)/2*bend_radius + 0.001 / 2, 0, bend_radius / 2 + ball_dia/2 + ball_tol/2 + back_thickness - 0.001 * sqrt(3)/2 ] ) rotate ( [ 0, -30, 0 ] ) cylinder( r = ball_dia/2 + ball_tol/2 + wall_thickness, h = shoot_len + 0.002, $fn = 36 );
+      translate( [ -sqrt(3)/2*bend_radius - shoot_len/2, 0, bend_radius / 2 + ball_dia/2 + ball_tol/2 + back_thickness + shoot_len*sqrt(3)/2 ] ) rotate( [ 0, -30, 0 ] ) sphere( r = ball_dia/2 + ball_tol/2 + wall_thickness, $fn = 36 );
+      rotate( [ 0, 0, 90 ] ) tt_base( bend_radius, ball_dia/2 + ball_tol/2 + wall_thickness, bend_radius + ball_dia/2 + ball_tol/2 + back_thickness, 18 );
+      translate ( [ height - slit_size, 0, ball_dia/2 + ball_tol/2 + back_thickness ] ) rotate ( [ 0, 90, 0 ] ) cylinder( r = ball_dia/2 + ball_tol/2 + 2 * wall_thickness, h = slit_size, $fn = 36 );
+      translate ( [ height - slit_size, 0, 0 ] ) tangent_base( ball_dia/2 + ball_tol/2 + back_thickness, 0, slit_size );
+      translate ( [ -1.1, 0, 0 ] ) cylinder( r = 0.75, h = 0.040, $fn = 18 );
+      translate ( [ height, 0, 0 ] ) cylinder( r = 1, h = 0.040, $fn = 18 );
+    }
+    translate( [ -0.001, 0, ball_dia/2 + ball_tol/2 + back_thickness ] ) rotate( [ 0, 90, 0 ] ) cylinder( r = ball_dia/2 + ball_tol/2, h = height + 0.2, $fn = 36 );
+    translate( [ 0, 0, bend_radius + ball_dia/2 + ball_tol/2 + back_thickness ] ) toroid( bend_radius, ball_dia + ball_tol );
+    translate ( [ -sqrt(3)/2*bend_radius + 0.001 / 2, 0, bend_radius / 2 + ball_dia/2 + ball_tol/2 + back_thickness - 0.001 * sqrt(3)/2 ] ) rotate ( [ 0, -30, 0 ] ) cylinder( r = ball_dia/2 + ball_tol/2, h = shoot_len + 0.002, $fn = 36 );
+    translate( [ -sqrt(3)/2*bend_radius - shoot_len/2, 0, bend_radius / 2 + ball_dia/2 + ball_tol/2 + back_thickness + shoot_len*sqrt(3)/2 ] ) rotate( [ 0, -30, 0 ] ) sphere( r = ball_dia/2 + ball_tol/2, $fn = 36 );
+    translate( [ -ball_dia/4 - shoot_len/2, 0, bend_radius + ball_dia/2 + ball_tol/2 + back_thickness + (shoot_len-0.5)*sqrt(3)/2 ] )
+      rotate( [ 0, 60, 0 ] )
+        union () {
+           translate( [ 0, 0, 1.5 * ball_dia ] ) cube( [ ball_dia + 2*ball_tol, 3 * ball_dia, 3 * ball_dia ], center = true );
+           rotate( [ 90, 0, 0 ] ) cylinder( r = ball_dia/2 + ball_tol, h = 3 * ball_dia, $fn = 36, center = true );
+        }
+    translate ( [ -sqrt(3)/2*bend_radius - shoot_len/2, 0, bend_radius / 2 + ball_dia/2 + ball_tol/2 + back_thickness + shoot_len*sqrt(3)/2 ] ) rotate( [ 0, -120, 0 ] ) cylinder( r = eject_hole/2, h = ball_dia, $fn = 18 );
+    slits( 0 );
+    slits( 90 );
+    slits( -90 );
+    translate( [ height - slit_size - screw_head, 0, back_thickness ] ) screw();
+    translate( [ slit_size + screw_head, 0, back_thickness ] ) screw();
+  }
+}"
+Mini Wrench,"include <shapes.scad>
+include <../openscad-bitmap/bitmap.scad>
+
+kerf = 0.4;
+
+D = 14 + kerf; 	// DIAMETER OF NUT
+M = D/2; 	// MARGIN
+H = 5; 	// HEIGHT (THICKNESS) OF TOOL
+Ltot = D * 10; 	// TOTAL LENGTH OF TOOL
+
+
+// Length from Center of One Side to Center of Other Side
+L = Ltot-2*(D/2+M);
+
+module num_to_str(number, block_size, height) {
+	numbers_size = ceil(log(number + 1) / log(10));
+	for (loc = [0:numbers_size - 1]) {
+		translate([0, (numbers_size - loc - 1) * block_size * 8, 0]) {
+			if (floor(number / pow(10, loc)) % 10 == 0)
+				8bit_char(""0"", block_size, height);
+			if (floor(number / pow(10, loc)) % 10 == 1)
+				8bit_char(""1"", block_size, height);
+			if (floor(number / pow(10, loc)) % 10 == 2)
+				8bit_char(""2"", block_size, height);
+			if (floor(number / pow(10, loc)) % 10 == 3)
+				8bit_char(""3"", block_size, height);
+			if (floor(number / pow(10, loc)) % 10 == 4)
+				8bit_char(""4"", block_size, height);
+			if (floor(number / pow(10, loc)) % 10 == 5)
+				8bit_char(""5"", block_size, height);
+			if (floor(number / pow(10, loc)) % 10 == 6)
+				8bit_char(""6"", block_size, height);
+			if (floor(number / pow(10, loc)) % 10 == 7)
+				8bit_char(""7"", block_size, height);
+			if (floor(number / pow(10, loc)) % 10 == 8)
+				8bit_char(""8"", block_size, height);
+			if (floor(number / pow(10, loc)) % 10 == 9)
+				8bit_char(""9"", block_size, height);
+		}
+	}
+}
+
+rotate([0, 0, -45])
+difference() {
+	union() {
+		translate([0,L/2,H/2]) {
+			cylinder(r = (D/2+M), h = H,center = true);
+		}
+		translate([0,-L/2,H/2]) {
+			cylinder(r = (D/2+M), h = H,center = true);
+		}
+		translate([-1*D/2,-L/2,0]) {
+			cube([D,L,H], center=false);
+		}
+	}
+	translate([0,-L/2 - D / 4,H/2 - 0.5]) {
+		rotate([0,0,30]) {
+			hexagon(D, H + 2);
+		}	
+	}
+	translate([0,-L/2 - D - D / 4,H/2 - 0.5]) {
+		cube([D,2*D,H + 2], center = true);
+	}
+	translate([0,L/2,H/2 - 0.5]) {
+		rotate([0,0,30]) {
+			hexagon(D, H + 2);
+		}	
+	}
+	translate([0, 0, H - 1])
+		num_to_str(D, 1, 1.1);
+}"
+Parametric Measuring Cup ,"
+use <write/Write.scad>
+
+/* [Size] */
+// unit of measurement 
+unit=1.0; // [1.0:ml, 16.387064:cubic inch (international inch), 28.4130625:imperial fluid ounce (Imp.fl.oz.), 29.5735295625: US fluid ounce (US fl.oz.)]
+
+// capacity of the cup
+volume=100;
+
+
+label1_text="""";
+label2_text="""";
+
+/* [Font] */
+
+// default: 1.5
+label_thickness = 1.5;
+
+//default: 8.0
+label1_height = 8.0;
+
+//default: orbitron.dxf
+label1_font=""orbitron.dxf""; //[orbitron.dxf,Letters.dxf,knewave.dxf,BlackRose.dxf,braille.dxf]
+
+//default: 8.0
+label2_height = 8.0;
+
+//default: orbitron.dxf
+label2_font=""orbitron.dxf""; //[orbitron.dxf,Letters.dxf,knewave.dxf,BlackRose.dxf,braille.dxf]
+
+
+/* [Advanced] */
+
+// If the printed size does to much differ, you can adjust here. It is easy to calculate: [desired volume] / [printed volume] -> adjust.
+adjust=1;
+
+// default: 1.0 (should be enough up to 100ml)
+wall_thickness_=1.0; 
+
+
+/* [Hidden] */
+
+// set to true, to get a model of the content volume. This can be measure with MeshLab or other tools
+build_measure_volume_reference=0; // [1:true, 0:false]
+
+// this is the unscaled cup volume (calculated with MeshLab) 
+ref_volume=137.2013;
+
+
+r_fn=12;  // used for $fn
+
+
+labels=[
+[0,label1_text,label1_font,label1_height,label_thickness],
+[1,label2_text,label2_font,label2_height,label_thickness],
+];
+
+volume_ml=volume*unit;
+echo(""capacity in ml:"", volume_ml);
+
+// calculate correct scale to get the exact volume 
+factor=pow(volume_ml/ref_volume*adjust,1/3);
+wall_thickness=wall_thickness_/factor;
+echo(""factor: "",factor);
+
+r1=1;
+r2=r1+wall_thickness;
+
+y0=-35;
+y1=0;
+y3=45;
+
+y4=68;
+
+x0=0;
+x1=19;
+x2=29;
+x3=30;
+x5=16;
+
+z0=0;
+z1=-45;
+z2=-5;
+
+y2=-z1+y0;
+y01=y0+(r2-r1);
+y31=y4+(y3-y4)*2/3;
+
+x4=(y1-y0)/(y2-y0)*(x3-x5)+x5;
+x11=x1+(x2-x1)/2;
+
+z3=-(r2-r1);
+z4=y0;
+
+bottom_factor=0.7;
+handle_factor=0.9;
+
+// cup points
+cup_points=[
+[x1,y4,z0],
+[x2,y3,z0],
+[x3,y2,z0],
+[x4,y1,z0],
+[-x4,y1,z0],
+[-x3,y2,z0],
+[-x2,y3,z0],
+[-x1,y4,z0],
+[x11*bottom_factor,y31,z1],
+[x2*bottom_factor,y3-2,z1],
+[x3*bottom_factor,y2,z1],
+[x4*bottom_factor,y1+3,z4-3],
+[-x4*bottom_factor,y1+3,z4-3],
+[-x3*bottom_factor,y2,z1],
+[-x2*bottom_factor,y3-2,z1],
+[-x11*bottom_factor,y31,z1],
+];
+
+// handle points
+handle_points=[
+[x4*handle_factor,y1,z2],
+[x4,y1,z0],
+[x5,y0,z0],
+[x5*handle_factor,y01,z3],
+[-x5*handle_factor,y01,z3],
+[-x5,y0,z0],
+[-x4,y1,z0],
+[-x4*handle_factor,y1,z2],
+];
+
+//build cup
+rotate([45,0,0])
+scale([1,1,1]*factor)
+build_cup(cup_points);
+
+module build_cup(points)
+intersection()
+{
+	translate([0,0,z1-r2])
+	linear_extrude(height=abs(z1)+r2,convexity=10)
+	polygon([
+	[-x3-r2-.1,y0-r2-.1],
+	[x3+r2+.1,y0-r2-.1],
+	[x3+r2+.1,y4+r2+.1],
+	[-x3-r2-.1,y4+r2+.1],
+	]);
+
+	difference()
+	{
+		if(!build_measure_volume_reference)
+		union()
+		{
+			build_handle(handle_points);
+
+			handle_outline(points, r=r2);
+		}
+
+		handle_outline(points, r=r1);
+	}
+}
+
+
+
+module build_handle(points)
+assign(a=-atan((z3-z2)/(y1-y01)))
+difference()
+{
+	union()
+	{
+		translate([0,y0,0])
+		rotate([-45,0,0])
+		translate([-(y1-y0)/2/2,0,-r2])
+		cube([(y1-y0)/2,(y1-y0)/3,y1-y0],center=0);
+
+		handle_outline(points, r=r2);
+	}
+	
+	difference()
+	{
+		handle_outline(points, r=r1);
+
+		for(label=labels)
+		build_label(label[0],label[1],label[2],label[3],label[4]);
+	}
+}
+
+module build_label(idx, text, font, height, thickness)
+assign(n=4)
+assign(xd=(x4-x5)/(n+1),yd=(y1-y01)/(n+1),zd=(z2-z3)/(n+1))
+assign(r=yd/4)
+if(len(text)>0)
+{
+	// write label
+	rotate([-atan((z3-z2)/(y1-y01)),0,0])
+	translate([0,-11.5-idx*2*yd,z2-r1-.1])
+	minkowski()
+	{
+		write(text, h=height, t=.1, font=font, center=true);
+	
+		cylinder(r1=wall_thickness/4,r2=0,h=thickness,$fn=4);
+	}
+}
+else
+{
+	// no labe? Then build riffle
+	for(a=[0.7+(1-idx)*2:n-idx*2])
+	hull()
+	for(m=[0,1])
+	mirror([m,0,0])
+	translate([x5+xd*a-yd,y01+yd*a,z3+zd*a-r/2])
+	sphere(r=r,$fn=r_fn);
+}
+
+module handle_outline(points, r)
+hull()
+for(p=points)
+translate(p)
+sphere(r=r,$fn=r_fn);
+
+"
+Card Holder for card games,"//Settlers game card holder
+// 1 to 1 copy of previous blender version but with parameters for changeing dimention
+
+//Constants
+card_x = 54; //original 54
+card_y = 80; //original 80
+card_space = 2; //original 2
+wall_thickness = 2; //original 2
+plate_height = 2; //original 2
+wall_height = 12; //original 12
+shortwall_cut = card_x/(card_y/card_x);
+shortwall = (card_x-shortwall_cut)/2+wall_thickness+card_space/2;
+
+//Connecting piece
+//the ""female"" part is 21mm at the biggest point and 12.5mm at the smallest and 10mm deep
+//the ""male"" part is  19.8mm at the biggest point and 10.46mm at smallest and 11.4mm long
+//the odd numbers are because i used a manualy freehand modifed box with no real grid snapping, and some random scaling
+female_con_x = 10;
+female_con_y1 = 21;
+female_con_y2 = 12.5;
+male_con_x = 11.4;
+male_con_y1 = 19.8;
+male_con_y2 = 10.46;
+angle = atan( ((female_con_y1-female_con_y2)/2) / female_con_x ); // same for both
+
+
+union() {
+
+	difference() {
+		//Base plate
+		cube(size = [card_x+card_space+wall_thickness*2, card_y+card_space+wall_thickness*2,plate_height], center = true);
+		//Round Cut
+		// was made with a cylinder with radius=32 scaled in x and y by 0.8, resulting in R=25.6 and that is aprox card_x
+		translate([0,card_y/1.27,-card_x/4])
+		cylinder(card_x/2, card_x/2, card_x/2, $fa=2);
+		translate([0,-card_y/1.27,-card_x/4])
+		cylinder(card_x/2, card_x/2, card_x/2, $fa=2);
+		
+		//female con
+		translate( [ (card_x/2) - female_con_x + card_space/2 + wall_thickness +0.01 , -female_con_y1/2, -plate_height ] ) //0.01 is for overlapping
+		difference() {
+			cube(size = [female_con_x, female_con_y1, plate_height*2], center = false);
+			translate( [ 0,female_con_y1,-1 ] )
+			rotate([0, 0, -angle])
+			cube(female_con_x*2);
+			translate( [ 0,0,-1 ] )
+			rotate([0, 0, angle-90])
+			cube(female_con_x*2);
+		}
+
+	}
+
+	//male con
+	translate( [ -(card_x/2) - card_space/2 - wall_thickness - male_con_x, -male_con_y1/2, -plate_height/2 ] ) 
+	difference() {
+		cube(size = [male_con_x, male_con_y1, plate_height], center = false);
+		translate( [ 0,male_con_y1,-1 ] )
+		rotate([0, 0, -angle])
+		cube(male_con_x*2);
+		translate( [ 0,0,-1 ] )
+		rotate([0, 0, angle-90])
+		cube(male_con_x*2);
+	}
+
+	//Cards for reference
+	//%cube(size = [card_x,card_y,9], center = true);
+	//%cube(size = [card_y,card_x,9], center = true);
+	
+	//%cube(size= [shortwall_cut, 100,20], center = true);
+	
+	// Long wall 1 of 4
+	translate([  (card_x+card_space+wall_thickness*2)/2 , (card_y+card_space+wall_thickness*2)/2 ,plate_height/2])
+	rotate([0,0,180])
+	cube(size = [wall_thickness,(card_y-card_x)/2+wall_thickness+card_space/2,wall_height] ,center = false);
+	
+	// Long wall 2 of 4
+	translate([  -(card_x+card_space+wall_thickness*2)/2 +wall_thickness , (card_y+card_space+wall_thickness*2)/2 ,plate_height/2])
+	rotate([0,0,180])
+	cube(size = [wall_thickness,(card_y-card_x)/2+wall_thickness+card_space/2,wall_height] ,center = false);
+	
+	// Long wall 3 of 4
+	translate([  (card_x+card_space+wall_thickness*2)/2 -wall_thickness, -(card_y+card_space+wall_thickness*2)/2 ,plate_height/2])
+	rotate([0,0,0])
+	cube(size = [wall_thickness,(card_y-card_x)/2+wall_thickness+card_space/2,wall_height] ,center = false);
+	
+	// Long wall 4 of 4
+	translate([  -(card_x+card_space+wall_thickness*2)/2 , -(card_y+card_space+wall_thickness*2)/2 ,plate_height/2])
+	rotate([0,0,0])
+	cube(size = [wall_thickness,(card_y-card_x)/2+wall_thickness+card_space/2,wall_height] ,center = false);
+	
+	//Shortwall 1 of 4
+	//the cut to make the space between the walls was originaly 37mm
+	translate([  -(card_x+card_space+wall_thickness*2)/2  , (card_y+card_space+wall_thickness*2)/2 ,plate_height/2])
+	rotate([0,0,270])
+	cube(size = [wall_thickness, shortwall , wall_height] ,center = false);
+	
+	//Shortwall 2 of 4
+	//the cut to make the space between the walls was originaly 37mm
+	translate([  (card_x+card_space+wall_thickness*2)/2 , -(card_y+card_space+wall_thickness*2)/2 ,plate_height/2])
+	rotate([0,0,90])
+	cube(size = [wall_thickness, shortwall , wall_height] ,center = false);
+	
+	//Shortwall 3 of 4
+	//the cut to make the space between the walls was originaly 37mm
+	translate([  -(card_x+card_space+wall_thickness*2)/2 , -(card_y+card_space+wall_thickness*2)/2 +wall_thickness ,plate_height/2])
+	rotate([0,0,270])
+	cube(size = [wall_thickness, shortwall , wall_height] ,center = false);
+	
+	//Shortwall 4 of 4
+	//the cut to make the space between the walls was originaly 37mm
+	translate([  (card_x+card_space+wall_thickness*2)/2 , (card_y+card_space+wall_thickness*2)/2 -wall_thickness ,plate_height/2])
+	rotate([0,0,90])
+	cube(size = [wall_thickness, shortwall , wall_height] ,center = false);
+	
+
+}"
+"New and Improved bottle opener. This opener is much more ergonomic, as well as supporting both US quarters and pennies.","//quarter parameters
+//coinDiameter = 24.5;
+//coinThickness = 1.8;
+
+//penny parameters
+coinDiameter = 19;
+coinThickness = 1.3;
+
+//our call to make it.
+bottle_opener(coinDiameter, coinThickness);
+
+//the actual bottle opener code
+module bottle_opener(diam, thickness)
+{
+	openerHeight = diam+5.5;
+
+	difference()
+	{
+		linear_extrude(file=""opener.dxf"", layer=""Opener"", height=openerHeight);
+		#translate([(
+diam/2)-1,5.85,openerHeight/2])
+		{
+			rotate([90, 0, 0])
+			{
+				cube(size=[diam, diam, thickness], center=true);
+			}
+		}
+	}
+}"
