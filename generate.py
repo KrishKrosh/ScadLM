@@ -17,7 +17,7 @@ client = OpenAI(
 )
 
 # CONSTANTS
-ITERATION_LIMIT = 5
+ITERATION_LIMIT = 2
 
 system_msg = "You are an assistant that helps with generating OpenSCAD code."
 
@@ -230,7 +230,7 @@ This is the rendering of the code you provided. Does it look correct?
 
 If yes, respond YES.
 
-If no, respond NO, identify what is wrong with the current model, then generate new code that addresses these issues."""
+If no, respond NO, identify what is wrong with the current model, then generate new code that addresses these issues. Be as specific as possible. Among other things, check if it looks like parts align correctly, and that they are connected properly."""
     + work_harder_prompt
     + code_prefix_prompt
 )
@@ -301,7 +301,9 @@ def generate_scad(input_prompt: str, old_generation_id: str = ""):
     generation_id = datetime.now().strftime("%Y%m%d%H%M%S")
 
     while iteration < ITERATION_LIMIT:
-        response = client.chat.completions.create(model="gpt-4o", messages=messages)
+        response = client.chat.completions.create(
+            model="gpt-4-vision-preview", messages=messages
+        )
 
         print("response", response)
 
@@ -313,21 +315,21 @@ def generate_scad(input_prompt: str, old_generation_id: str = ""):
 
         code = ""
         if "```" in output:
-            code = output.split("```")[1]
+            code = output.split("```")[1].strip("openscad")
         elif "YES" in output:
             print("finished generation")
-            return generation_id
+            return generation_id, iteration - 1
         else:
             print("no code found")
             messages.append({"role": "user", "content": no_compile_prompt})
             continue
 
+        print(code)
+
         if not render_scad(code, generation_id, iteration=iteration):
             print("code does not compile")
             messages.append({"role": "user", "content": no_compile_prompt})
             continue
-
-        print(code)
 
         last_generated_image = f"generated/{generation_id}/{iteration}/output.png"
         messages.append(
@@ -335,8 +337,10 @@ def generate_scad(input_prompt: str, old_generation_id: str = ""):
                 "role": "user",
                 "content": [
                     {
-                        "type": "image",
-                        "content": f"data:image/jpeg;base64,{encode_image(last_generated_image)}",
+                        "type": "image_url",
+                        "image_url": {
+                            "url": f"data:image/jpeg;base64,{encode_image(last_generated_image)}",
+                        },
                     },
                     {"type": "text", "text": feedback_prompt},
                 ],
@@ -345,4 +349,4 @@ def generate_scad(input_prompt: str, old_generation_id: str = ""):
 
         iteration += 1
 
-    return generation_id, iteration
+    return generation_id, iteration - 1
