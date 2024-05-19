@@ -1,0 +1,4 @@
+{
+    "image": "your_base64_image_string",
+    "prompt": "[INST] <image>\nWhat is shown in this image? [/INST]"
+}

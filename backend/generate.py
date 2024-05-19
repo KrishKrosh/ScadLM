@@ -6,6 +6,7 @@ import nomic
 from nomic import AtlasDataset, embed
 import numpy
 import json
+import requests
 from prompts import (
     pre_prompt,
     openscad_cheatsheet,
@@ -62,8 +63,23 @@ def similarity_search(query):
     return proc_string
 
 
+
+def query_llava_endpoint(input_prompt: str, image_encoded: str = None):
+    payload = {
+        "prompt": input_prompt,
+    }
+    if image_encoded:
+        payload["image"] = image_encoded
+    response = requests.post(
+        "https://c2r4op3o0jj6jx-8000.proxy.runpod.net/process",
+        json=payload,
+    )
+    return response.json()
+
+
+
 # Generates OpenSCAD code given an initial prompt
-def generate_scad(input_prompt: str, old_generation_id: str = ""):
+def generate_scad(input_prompt: str, old_generation_id: str = "", model="gpt"):
     iteration = 0
     examples = similarity_search(input_prompt)
     if old_generation_id == "":
@@ -82,8 +98,12 @@ def generate_scad(input_prompt: str, old_generation_id: str = ""):
     generation_id = datetime.now().strftime("%Y%m%d%H%M%S")
 
     while iteration < ITERATION_LIMIT:
-        response = client.chat.completions.create(
-            model="gpt-4-vision-preview", messages=messages
+
+        if model != "gpt":
+            response = query_llava_endpoint(messages[-1]["content"])
+        else:
+            response = client.chat.completions.create(
+                model="gpt-4-vision-preview", messages=messages
         )
 
         print("response", response)
