@@ -8,15 +8,16 @@ import base64
 load_dotenv()
 
 endpoint_id = os.environ.get("RUNPOD_ENDPOINT_ID")
-api_key = os.environ.get("RUNPOD_API_KEY")
+# api_key = os.environ.get("RUNPOD_API_KEY")
+api_key = os.environ.get("OPENAI_API_KEY")
 
 client = OpenAI(
-    base_url=f"https://api.runpod.ai/v2/{endpoint_id}/openai/v1",
+    # base_url=f"https://api.runpod.ai/v2/{endpoint_id}/openai/v1",
     api_key=api_key,
 )
 
 # CONSTANTS
-ITERATION_LIMIT = 10
+ITERATION_LIMIT = 5
 
 system_msg = "You are an assistant that helps with generating OpenSCAD code."
 
@@ -213,8 +214,7 @@ norm
 cross
 """
 
-code_prefix_prompt = """Preface your code with "CODE:" so that I can parse it correctly.
-"""
+code_prefix_prompt = """"""
 
 work_harder_prompt = "Do not be lazy. Give your full best effort. Work at your highest potential. Do not 'give a basic example'"
 
@@ -287,7 +287,7 @@ def render_scad(code: str, generation_id: str, iteration: int) -> bool:
 # Generates OpenSCAD code given an initial prompt
 def generate_scad(input_prompt: str, old_generation_id: str = ""):
     iteration = 0
-    if old_generation_id != "":
+    if old_generation_id == "":
         prompt = f"{pre_prompt}\n\n{input_prompt}\n\n{openscad_cheatsheet}"
     else:
         prompt = f"{get_last_generated_scad(old_generation_id)}\n\n{update_prompt}"
@@ -301,28 +301,33 @@ def generate_scad(input_prompt: str, old_generation_id: str = ""):
     generation_id = datetime.now().strftime("%Y%m%d%H%M%S")
 
     while iteration < ITERATION_LIMIT:
-        response = client.chat.completions.create(
-            model="Qwen/CodeQwen1.5-7B-Chat", messages=messages
-        )
+        response = client.chat.completions.create(model="gpt-4o", messages=messages)
+
+        print("response", response)
 
         # get output from last message
-        output = response["choices"][0]["message"]["content"]
+        output = response.choices[0].message.content
 
         # append output to messages
         messages.append({"role": "assistant", "content": output})
 
         code = ""
-        if "CODE:" in output:
-            code = output.split("CODE:")[1]
+        if "```" in output:
+            code = output.split("```")[1]
         elif "YES" in output:
+            print("finished generation")
             return generation_id
         else:
+            print("no code found")
             messages.append({"role": "user", "content": no_compile_prompt})
-            break
+            continue
 
-        if not render_scad(code, generation_id):
+        if not render_scad(code, generation_id, iteration=iteration):
+            print("code does not compile")
             messages.append({"role": "user", "content": no_compile_prompt})
-            break
+            continue
+
+        print(code)
 
         last_generated_image = f"generated/{generation_id}/{iteration}/output.png"
         messages.append(

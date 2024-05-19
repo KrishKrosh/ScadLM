@@ -20,14 +20,16 @@ app.config["CORS_HEADERS"] = "Content-Type"
 def cad():
     query = request.args.get("query")
     generation_id, iteration = generate_scad(query)
-    serve_stl(generation_id, iteration)
+    return serve_stl(generation_id, iteration)
 
 
 @cross_origin()
 @app.route("/models/generated/<generation_id>/<iteration>/output.stl")
 def serve_stl(generation_id, iteration):
     # Construct the file path
-    file_path = os.path.join("generated", generation_id, iteration, "output.stl")
+    file_path = os.path.join(
+        "generated", str(generation_id), str(iteration), "output.stl"
+    )
 
     # Check if the file exists
     if not os.path.exists(file_path):
