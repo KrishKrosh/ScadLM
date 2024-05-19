@@ -1,2 +1,34 @@
 # ScadLM
-Open source agentic AI CAD generation built on OpenSCAD
+
+Open source agentic AI CAD generation built on OpenSCAD. We decided to build it because we didn't see any ideas of using a visual transformer to create feedback of the model generation process. We wanted to create a tool that would allow users to see the model being generated in real-time and download the model once it's done. In the end, it didn't work that well, but think there is still hope for the idea if the other parts of this project were improved.
+
+We also attempted finetuning the model on a labeled dataset of descriptions and openscad files, but the model didn't learn anything useful. We think this is because the dataset was too small.
+
+## Features
+
+- Generate CAD models with a simple input
+- View the generated model in the browser
+- Download the generated model as STL or OpenSCAD file
+- View iterations of the agent working on the model
+
+## Requirements
+
+- Python 3.6+
+- OpenSCAD
+  - You can download with brew: `brew install openscad`
+
+## Installation
+
+1. Clone the repository
+2. Install the requirements: `pip install -r requirements.txt`
+3. Run the server: `python server.py`
+4. Run the frontend: `yarn start`
+5. Open your browser to `localhost:3000`
+6. Start generating CAD models!
+
+## Usage
+
+1. Fill out the input with what you want to generate
+2. Hit generate
+3. Wait for the model to generate
+4. Download the model and use it in your CAD software
