@@ -2,7 +2,6 @@ import os
 from openai import OpenAI
 from datetime import datetime
 from dotenv import load_dotenv
-import base64
 import nomic
 from nomic import AtlasDataset, embed
 import numpy

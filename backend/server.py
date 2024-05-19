@@ -41,7 +41,7 @@ def serve_png(generation_id, iteration):
 
 @cross_origin()
 @app.route("/models/generated/<generation_id>/<iteration>/output.scad")
-def serve_png(generation_id, iteration):
+def serve_scad(generation_id, iteration):
     return serve_file(generation_id, iteration, "output.scad")
 
 
