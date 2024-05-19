@@ -275,13 +275,32 @@ def get_last_generated_scad(generation_id: str):
 # creates .scad, .png, and .stl files
 # places them in /generated/{generation_id}/{iteration}/output.{filetype}
 def render_scad(code: str, generation_id: str, iteration: int) -> bool:
-    os.system(f"mkdir -p generated/{generation_id}/{iteration}")
-    os.system(f"echo '{code}' > generated/{generation_id}/{iteration}/output.scad")
-    png_command = f"openscad -o generated/{generation_id}/{iteration}/output.png generated/{generation_id}/{iteration}/output.scad"
-    stl_command = f"openscad -o generated/{generation_id}/{iteration}/output.stl generated/{generation_id}/{iteration}/output.scad"
-    png_success = os.system(png_command) == 0
+    # Ensure the output directory exists
+    output_dir = f"generated/{generation_id}/{iteration}"
+    os.makedirs(output_dir, exist_ok=True)
+    
+    # Write the SCAD code to a file
+    scad_file = f"{output_dir}/output.scad"
+    with open(scad_file, 'w') as file:
+        file.write(code)
+    
+    # Generate STL file
+    stl_command = f"openscad -o {output_dir}/output.stl {scad_file}"
     stl_success = os.system(stl_command) == 0
-    return png_success and stl_success
+    
+    # Call the bash script to generate images
+    bash_script = "./scad2image.sh"
+    bash_command = f"{bash_script} {scad_file}"
+    png_success = os.system(bash_command) == 0
+
+    # Check if the final combined image is created
+    final_image_path = f"{output_dir}/renders/final_image.png"
+    if png_success and os.path.exists(final_image_path):
+        # Move the final image to the output directory
+        os.rename(final_image_path, f"{output_dir}/output.png")
+        return stl_success
+    else:
+        return False
 
 
 # Generates OpenSCAD code given an initial prompt
