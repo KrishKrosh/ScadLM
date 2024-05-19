@@ -11,11 +11,13 @@ app = Flask(__name__)
 CORS(app)
 app.config["CORS_HEADERS"] = "Content-Type"
 
+
 def serve_file(generation_id, iteration, file_name):
     file_path = os.path.join("generated", str(generation_id), str(iteration), file_name)
     if not os.path.exists(file_path):
         abort(404, description="Resource not found")
     return send_from_directory(os.path.dirname(file_path), file_name)
+
 
 @cross_origin()
 @app.route("/cad", methods=["GET"])
@@ -24,15 +26,24 @@ def cad():
     generation_id, iteration = generate_scad(query)
     return {"id": generation_id, "iteration": iteration, "shapes": []}
 
+
 @cross_origin()
 @app.route("/models/generated/<generation_id>/<iteration>/output.stl")
 def serve_stl(generation_id, iteration):
     return serve_file(generation_id, iteration, "output.stl")
 
+
 @cross_origin()
 @app.route("/models/generated/<generation_id>/<iteration>/output.png")
 def serve_png(generation_id, iteration):
     return serve_file(generation_id, iteration, "output.png")
+
+
+@cross_origin()
+@app.route("/models/generated/<generation_id>/<iteration>/output.scad")
+def serve_png(generation_id, iteration):
+    return serve_file(generation_id, iteration, "output.scad")
+
 
 @cross_origin()
 @app.route("/files/<generation_id>/<iteration>", methods=["GET"])
@@ -42,6 +53,7 @@ def get_files(generation_id, iteration):
         abort(404, description="Resource not found")
     files = os.listdir(directory)
     return jsonify(files)
+
 
 if __name__ == "__main__":
     port = int(os.getenv("PORT", 5001))
