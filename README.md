@@ -4,6 +4,10 @@ Open source agentic AI CAD generation built on OpenSCAD. We decided to build it 
 
 We also attempted finetuning the model on a labeled dataset of descriptions and openscad files, but the model didn't learn anything useful. We think this is because the dataset was too small, and not high quality.
 
+![image](https://github.com/KrishKrosh/ScadLM/assets/50386081/89324674-f635-4c9d-bd62-22d855ee768d)
+![image](https://github.com/KrishKrosh/ScadLM/assets/50386081/8dea3644-9e1e-43e3-b152-9536415c2faa)
+
+
 ## Features
 
 - Generate CAD models with a simple input
