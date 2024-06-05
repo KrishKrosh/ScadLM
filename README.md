@@ -2,7 +2,7 @@
 
 Open source agentic AI CAD generation built on OpenSCAD. We decided to build it because we didn't see any ideas of using a visual transformer to create feedback of the model generation process. We wanted to create a tool that would allow users to see the model being generated in real-time and download the model once it's done. In the end, it didn't work that well, but think there is still hope for the idea if the other parts of this project were improved.
 
-We also attempted finetuning the model on a labeled dataset of descriptions and openscad files, but the model didn't learn anything useful. We think this is because the dataset was too small.
+We also attempted finetuning the model on a labeled dataset of descriptions and openscad files, but the model didn't learn anything useful. We think this is because the dataset was too small, and not high quality.
 
 ## Features
 
@@ -32,3 +32,7 @@ We also attempted finetuning the model on a labeled dataset of descriptions and 
 2. Hit generate
 3. Wait for the model to generate
 4. Download the model and use it in your CAD software
+
+## Credits
+Lots of inspiration and code from https://github.com/OpenOrion/CQAsk implementation!
+Was made in ~15 hours at Runpod Open Source Hackathon.
